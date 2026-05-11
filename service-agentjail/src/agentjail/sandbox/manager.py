@@ -5,7 +5,6 @@ from uuid import uuid4
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.filesystem import (
-    PathTraversalError,
     fs_list,
     fs_mkdir,
     fs_read,
