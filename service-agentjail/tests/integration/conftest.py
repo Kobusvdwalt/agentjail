@@ -31,8 +31,7 @@ def container(image):
         .with_exposed_ports(8000)
         .with_env_file(str(Path(SERVICE_DIR) / "default.env"))
         .with_kwargs(
-            cap_add=["SYS_ADMIN"],
-            security_opt=["apparmor=unconfined", "seccomp=unconfined"],
+            privileged=True,
         )
         .waiting_for(
             LogMessageWaitStrategy("Application startup complete").with_startup_timeout(
