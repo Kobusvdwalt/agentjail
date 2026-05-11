@@ -24,10 +24,13 @@ def fs_read(root_dir: Path, path: str) -> str:
     return target.read_text()
 
 
-def fs_write(root_dir: Path, path: str, content: str) -> None:
+def fs_write(root_dir: Path, path: str, content: str | bytes) -> None:
     target = _resolve_safe(root_dir, path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content)
+    if isinstance(content, bytes):
+        target.write_bytes(content)
+    else:
+        target.write_text(content)
 
 
 def fs_mkdir(root_dir: Path, path: str) -> None:

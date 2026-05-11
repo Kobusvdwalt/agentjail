@@ -180,7 +180,9 @@ class SandboxManager:
         sandbox = self._get_sandbox(sandbox_id)
         return fs_read(Path(sandbox.root_dir), path)
 
-    async def sandbox_fs_write(self, sandbox_id: str, path: str, content: str) -> None:
+    async def sandbox_fs_write(
+        self, sandbox_id: str, path: str, content: str | bytes
+    ) -> None:
         sandbox = self._get_sandbox(sandbox_id)
         fs_write(Path(sandbox.root_dir), path, content)
 
