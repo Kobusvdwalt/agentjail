@@ -9,6 +9,7 @@ from agentjail.sandbox.filesystem import (
     fs_mkdir,
     fs_read,
     fs_remove,
+    fs_resolve,
     fs_stat,
     fs_write,
 )
@@ -179,6 +180,10 @@ class SandboxManager:
     async def sandbox_fs_read(self, sandbox_id: str, path: str) -> str:
         sandbox = self._get_sandbox(sandbox_id)
         return fs_read(Path(sandbox.root_dir), path)
+
+    async def sandbox_fs_download(self, sandbox_id: str, path: str) -> Path:
+        sandbox = self._get_sandbox(sandbox_id)
+        return fs_resolve(Path(sandbox.root_dir), path)
 
     async def sandbox_fs_write(
         self, sandbox_id: str, path: str, content: str | bytes

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from agentjail.sandbox.filesystem import PathTraversalError
@@ -82,6 +83,16 @@ async def fs_upload(
     path = f"/uploads/{file.filename}"
     await _try(sandbox_id, manager.sandbox_fs_write(sandbox_id, path, content))
     return {"status": "written", "path": path}
+
+
+@router.get("/sandbox/{sandbox_id}/fs/download")
+async def fs_download(
+    sandbox_id: str,
+    path: str,
+    manager: SandboxManager = Depends(get_manager),
+) -> FileResponse:
+    resolved = await _try(sandbox_id, manager.sandbox_fs_download(sandbox_id, path))
+    return FileResponse(resolved, filename=resolved.name)
 
 
 @router.get("/sandbox/{sandbox_id}/fs/list")

@@ -24,6 +24,13 @@ def fs_read(root_dir: Path, path: str) -> str:
     return target.read_text()
 
 
+def fs_resolve(root_dir: Path, path: str) -> Path:
+    target = _resolve_safe(root_dir, path)
+    if not target.is_file():
+        raise FileNotFoundError(f"Not a file: {path}")
+    return target
+
+
 def fs_write(root_dir: Path, path: str, content: str | bytes) -> None:
     target = _resolve_safe(root_dir, path)
     target.parent.mkdir(parents=True, exist_ok=True)
