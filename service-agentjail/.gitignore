@@ -1,0 +1,7 @@
+__pycache__/
+
+state.json
+state.json.lock
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/

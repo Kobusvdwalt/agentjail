@@ -1,0 +1,43 @@
+[project]
+name = "agentjail"
+version = "0.1.0"
+description = "Sandboxed command execution for AI agents via MCP and REST API"
+requires-python = ">=3.14"
+dependencies = [
+    "fastmcp>=2.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "typer>=0.12",
+    "filelock>=3.16",
+]
+
+[project.scripts]
+agentjail = "agentjail.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentjail"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.8",
+    "testcontainers>=4.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+markers = [
+    "network: tests requiring external network access",
+    "unit: fast tests with mocked nsjail (no Docker)",
+    "integration: tests requiring Docker (via testcontainers)",
+]
