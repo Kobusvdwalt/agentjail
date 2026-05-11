@@ -540,7 +540,7 @@ class TestEnvLeakage:
             result = await shell(
                 client,
                 sb["id"],
-                "X=override echo $X",
+                "export X=override && echo $X",
             )
             assert "override" in result["stdout"]
         finally:
