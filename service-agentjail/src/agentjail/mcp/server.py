@@ -19,22 +19,6 @@ def _get_manager() -> SandboxManager:
 
 
 @mcp.tool
-async def sandbox_run(
-    command: str,
-    time_limit: int = 30,
-    memory_limit: int = 256,
-    env: dict[str, str] | None = None,
-) -> str:
-    """Create an ephemeral sandbox, run a command, return the output, and destroy it."""
-    result, sandbox_id = await _get_manager().sandbox_run(
-        command, time_limit=time_limit, memory_limit=memory_limit, env=env
-    )
-    return result.model_copy(
-        update={"stdout": f"[sandbox_id={sandbox_id}]\n{result.stdout}"}
-    ).model_dump_json()
-
-
-@mcp.tool
 async def sandbox_create(
     name: str | None = None,
     time_limit: int = 30,
@@ -55,13 +39,6 @@ async def sandbox_create(
         network=network,
     )
     return sandbox.model_dump_json()
-
-
-@mcp.tool
-async def sandbox_list() -> str:
-    """List all sandboxes with their current status."""
-    sandboxes = await _get_manager().sandbox_list()
-    return f"[{','.join(s.model_dump_json() for s in sandboxes)}]"
 
 
 @mcp.tool

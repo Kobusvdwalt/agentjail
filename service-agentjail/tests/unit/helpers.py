@@ -10,7 +10,7 @@ async def create_sandbox(client: httpx.AsyncClient, **overrides) -> dict:
 async def remove_sandbox(
     client: httpx.AsyncClient, sandbox_id: str, force: bool = True
 ):
-    await client.delete(f"/sandbox/{sandbox_id}", params={"force": force})
+    await client.delete(f"/sandbox/{sandbox_id}", params={"force": True})
 
 
 async def shell(
@@ -47,39 +47,20 @@ async def exec_cmd(
     return resp.json()
 
 
-async def fs_read(
-    client: httpx.AsyncClient, sandbox_id: str, path: str
-) -> httpx.Response:
-    return await client.get(f"/sandbox/{sandbox_id}/fs/read", params={"path": path})
-
-
-async def fs_write(
-    client: httpx.AsyncClient, sandbox_id: str, path: str, content: str
+async def upload(
+    client: httpx.AsyncClient,
+    sandbox_id: str,
+    filename: str,
+    content: bytes,
+    content_type: str = "application/octet-stream",
 ) -> httpx.Response:
     return await client.post(
-        f"/sandbox/{sandbox_id}/fs/write", json={"path": path, "content": content}
+        f"/sandbox/{sandbox_id}/fs/upload",
+        files={"file": (filename, content, content_type)},
     )
 
 
-async def fs_list(
-    client: httpx.AsyncClient, sandbox_id: str, path: str = "/"
-) -> httpx.Response:
-    return await client.get(f"/sandbox/{sandbox_id}/fs/list", params={"path": path})
-
-
-async def fs_mkdir(
+async def download(
     client: httpx.AsyncClient, sandbox_id: str, path: str
 ) -> httpx.Response:
-    return await client.post(f"/sandbox/{sandbox_id}/fs/mkdir", json={"path": path})
-
-
-async def fs_remove(
-    client: httpx.AsyncClient, sandbox_id: str, path: str
-) -> httpx.Response:
-    return await client.delete(f"/sandbox/{sandbox_id}/fs", params={"path": path})
-
-
-async def fs_stat(
-    client: httpx.AsyncClient, sandbox_id: str, path: str
-) -> httpx.Response:
-    return await client.get(f"/sandbox/{sandbox_id}/fs/stat", params={"path": path})
+    return await client.get(f"/sandbox/{sandbox_id}/fs/download", params={"path": path})
