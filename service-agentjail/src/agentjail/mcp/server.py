@@ -63,22 +63,6 @@ async def sandbox_remove(sandbox_id: str, force: bool = False) -> str:
 
 
 @mcp.tool
-async def sandbox_exec(
-    sandbox_id: str,
-    command: str,
-    args: list[str] | None = None,
-    cwd: str | None = None,
-    env: dict[str, str] | None = None,
-    timeout: int | None = None,
-) -> str:
-    """Execute a command with arguments inside a running sandbox."""
-    result = await _get_manager().sandbox_exec(
-        sandbox_id, command, args=args, cwd=cwd, env=env, timeout=timeout
-    )
-    return result.model_dump_json()
-
-
-@mcp.tool
 async def sandbox_shell(
     sandbox_id: str,
     command: str,
@@ -87,3 +71,12 @@ async def sandbox_shell(
     """Execute a shell command string with pipes, redirects, and shell syntax."""
     result = await _get_manager().sandbox_shell(sandbox_id, command, timeout=timeout)
     return result.model_dump_json()
+
+
+@mcp.tool
+async def sandbox_download(sandbox_id: str, path: str) -> str:
+    """Prepare a file for download from the sandbox. Copies the file to a downloads folder with a unique name and returns a URL where it can be fetched."""
+    import json
+
+    result = await _get_manager().sandbox_download(sandbox_id, path)
+    return json.dumps(result)

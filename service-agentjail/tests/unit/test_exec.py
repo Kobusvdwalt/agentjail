@@ -1,7 +1,7 @@
 import httpx
 
 from agentjail.sandbox.models import ExecResult
-from helpers import create_sandbox, exec_cmd, remove_sandbox, shell
+from helpers import create_sandbox, remove_sandbox, shell
 
 
 class TestShell:
@@ -99,93 +99,12 @@ class TestShell:
         assert result["stdout"].strip() == "3"
 
 
-class TestExec:
-    async def test_exec_binary(
-        self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
-    ):
-        mock_nsjail_run.return_value = ExecResult(
-            exit_code=0, stdout="hello world\n", stderr=""
-        )
-        result = await exec_cmd(
-            client, sandbox["id"], "/bin/echo", args=["hello", "world"]
-        )
-        assert result["exit_code"] == 0
-        assert "hello world" in result["stdout"]
-
-    async def test_exec_ls(
-        self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
-    ):
-        mock_nsjail_run.return_value = ExecResult(
-            exit_code=0, stdout="total 0\n", stderr=""
-        )
-        result = await exec_cmd(client, sandbox["id"], "/bin/ls", args=["-la", "/home"])
-        assert result["exit_code"] == 0
-        assert len(result["stdout"]) > 0
-
-    async def test_exec_with_cwd(
-        self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
-    ):
-        mock_nsjail_run.return_value = ExecResult(
-            exit_code=0, stdout="/tmp\n", stderr=""
-        )
-        result = await exec_cmd(client, sandbox["id"], "/bin/pwd", cwd="/tmp")
-        assert result["stdout"].strip() == "/tmp"
-
-    async def test_exec_with_env(
-        self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
-    ):
-        mock_nsjail_run.return_value = ExecResult(
-            exit_code=0, stdout="override\n", stderr=""
-        )
-        result = await exec_cmd(
-            client,
-            sandbox["id"],
-            "/bin/sh",
-            args=["-c", "echo $X"],
-            env={"X": "override"},
-        )
-        assert "override" in result["stdout"]
-
-    async def test_exec_with_timeout(
-        self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
-    ):
-        mock_nsjail_run.return_value = ExecResult(
-            exit_code=-1, stdout="", stderr="", timed_out=True
-        )
-        result = await exec_cmd(
-            client, sandbox["id"], "/bin/sleep", args=["60"], timeout=2
-        )
-        assert result["timed_out"] or result["exit_code"] != 0
-
-    async def test_exec_nonexistent_binary(
-        self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
-    ):
-        mock_nsjail_run.return_value = ExecResult(
-            exit_code=127, stdout="", stderr="not found\n"
-        )
-        result = await exec_cmd(client, sandbox["id"], "/nonexistent/binary")
-        assert result["exit_code"] != 0
-
-
 class TestErrorCases:
-    async def test_exec_nonexistent_sandbox(self, client: httpx.AsyncClient):
-        resp = await client.post(
-            "/sandbox/nonexistent-uuid/exec", json={"command": "/bin/echo"}
-        )
-        assert resp.status_code == 404
-
     async def test_shell_nonexistent_sandbox(self, client: httpx.AsyncClient):
         resp = await client.post(
             "/sandbox/nonexistent-uuid/shell", json={"command": "echo hi"}
         )
         assert resp.status_code == 404
-
-    async def test_exec_stopped_sandbox(self, client: httpx.AsyncClient, sandbox: dict):
-        await client.post(f"/sandbox/{sandbox['id']}/stop")
-        resp = await client.post(
-            f"/sandbox/{sandbox['id']}/exec", json={"command": "/bin/echo"}
-        )
-        assert resp.status_code == 409
 
     async def test_shell_stopped_sandbox(
         self, client: httpx.AsyncClient, sandbox: dict
