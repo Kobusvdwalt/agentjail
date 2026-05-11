@@ -1,24 +1,14 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 
 from agentjail.sandbox.filesystem import PathTraversalError
 from agentjail.sandbox.manager import SandboxManager, SandboxNotFound
-from agentjail.sandbox.models import FileInfo
 
 router = APIRouter()
 
 
 def get_manager(request: Request) -> SandboxManager:
     return request.app.state.manager
-
-
-class WriteRequest(BaseModel):
-    path: str
-    content: str
-
-
-class MkdirRequest(BaseModel):
-    path: str
 
 
 def _handle_errors(sandbox_id: str):
@@ -50,73 +40,23 @@ async def _try(sandbox_id: str, coro):
         raise
 
 
-@router.get("/sandbox/{sandbox_id}/fs/read")
-async def fs_read(
-    sandbox_id: str,
-    path: str,
-    manager: SandboxManager = Depends(get_manager),
-) -> dict:
-    content = await _try(sandbox_id, manager.sandbox_fs_read(sandbox_id, path))
-    return {"path": path, "content": content}
-
-
-@router.post("/sandbox/{sandbox_id}/fs/write")
-async def fs_write(
-    sandbox_id: str,
-    body: WriteRequest,
-    manager: SandboxManager = Depends(get_manager),
-) -> dict:
-    await _try(
-        sandbox_id, manager.sandbox_fs_write(sandbox_id, body.path, body.content)
-    )
-    return {"status": "written", "path": body.path}
-
-
 @router.post("/sandbox/{sandbox_id}/fs/upload")
 async def fs_upload(
     sandbox_id: str,
-    path: str = Form(...),
     file: UploadFile = File(...),
     manager: SandboxManager = Depends(get_manager),
 ) -> dict:
     content = await file.read()
+    path = f"/uploads/{file.filename}"
     await _try(sandbox_id, manager.sandbox_fs_write(sandbox_id, path, content))
     return {"status": "written", "path": path}
 
 
-@router.get("/sandbox/{sandbox_id}/fs/list")
-async def fs_list(
-    sandbox_id: str,
-    path: str = "/",
-    manager: SandboxManager = Depends(get_manager),
-) -> list[FileInfo]:
-    return await _try(sandbox_id, manager.sandbox_fs_list(sandbox_id, path))
-
-
-@router.post("/sandbox/{sandbox_id}/fs/mkdir")
-async def fs_mkdir(
-    sandbox_id: str,
-    body: MkdirRequest,
-    manager: SandboxManager = Depends(get_manager),
-) -> dict:
-    await _try(sandbox_id, manager.sandbox_fs_mkdir(sandbox_id, body.path))
-    return {"status": "created", "path": body.path}
-
-
-@router.delete("/sandbox/{sandbox_id}/fs")
-async def fs_remove(
+@router.get("/sandbox/{sandbox_id}/fs/download")
+async def fs_download(
     sandbox_id: str,
     path: str,
     manager: SandboxManager = Depends(get_manager),
-) -> dict:
-    await _try(sandbox_id, manager.sandbox_fs_remove(sandbox_id, path))
-    return {"status": "removed", "path": path}
-
-
-@router.get("/sandbox/{sandbox_id}/fs/stat")
-async def fs_stat(
-    sandbox_id: str,
-    path: str,
-    manager: SandboxManager = Depends(get_manager),
-) -> FileInfo:
-    return await _try(sandbox_id, manager.sandbox_fs_stat(sandbox_id, path))
+) -> FileResponse:
+    resolved = await _try(sandbox_id, manager.sandbox_fs_download(sandbox_id, path))
+    return FileResponse(resolved, filename=resolved.name)

@@ -2,106 +2,73 @@ import os
 
 import httpx
 
-from helpers import (
-    fs_list,
-    fs_mkdir,
-    fs_read,
-    fs_remove,
-    fs_stat,
-    fs_write,
-)
+from helpers import download
 
 
-class TestPathTraversalAPI:
-    async def test_path_traversal_read_etc_passwd(
+class TestPathTraversalDownload:
+    async def test_path_traversal_download_etc_passwd(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        resp = await fs_read(client, sandbox["id"], "../../etc/passwd")
+        resp = await download(client, sandbox["id"], "../../etc/passwd")
         assert resp.status_code == 400
 
-    async def test_path_traversal_read_absolute(
+    async def test_path_traversal_download_absolute(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        resp = await fs_read(client, sandbox["id"], "/../../etc/passwd")
+        resp = await download(client, sandbox["id"], "/../../etc/passwd")
         assert resp.status_code == 400
 
-    async def test_path_traversal_write_outside(
+    async def test_path_traversal_download_encoded_slashes(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        resp = await fs_write(client, sandbox["id"], "../../tmp/evil.txt", "pwned")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_mkdir_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_mkdir(client, sandbox["id"], "../../tmp/evil")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_remove_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_remove(client, sandbox["id"], "../../etc/hostname")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_stat_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_stat(client, sandbox["id"], "../../etc/hostname")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_list_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_list(client, sandbox["id"], "../../etc")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_encoded_slashes(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_read(client, sandbox["id"], "%2e%2e%2f%2e%2e%2fetc%2fpasswd")
+        resp = await download(client, sandbox["id"], "%2e%2e%2f%2e%2e%2fetc%2fpasswd")
         assert resp.status_code in (400, 404)
 
-    async def test_path_traversal_null_byte(
+    async def test_path_traversal_download_null_byte(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         try:
-            resp = await fs_read(client, sandbox["id"], "/test.txt\x00../../etc/passwd")
+            resp = await download(
+                client, sandbox["id"], "/test.txt\x00../../etc/passwd"
+            )
             assert resp.status_code in (400, 404, 422, 500)
         except ValueError:
             pass
 
 
 class TestSymlinkEscape:
-    async def test_symlink_read_etc_passwd(
+    async def test_symlink_download_etc_passwd(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         root_dir = sandbox["root_dir"]
-        os.symlink("/etc/passwd", os.path.join(root_dir, "link"))
-        resp = await fs_read(client, sandbox["id"], "/link")
+        os.symlink("/etc/passwd", os.path.join(root_dir, "uploads", "link"))
+        resp = await download(client, sandbox["id"], "/uploads/link")
         if resp.status_code == 200:
-            assert "root:" not in resp.json().get("content", "")
+            assert b"root:" not in resp.content
         else:
             assert resp.status_code in (400, 404)
 
-    async def test_symlink_read_state_file(
+    async def test_symlink_download_state_file(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         root_dir = sandbox["root_dir"]
-        os.symlink("/var/lib/agentjail/state.json", os.path.join(root_dir, "statelink"))
-        resp = await fs_read(client, sandbox["id"], "/statelink")
+        os.symlink(
+            "/var/lib/agentjail/state.json",
+            os.path.join(root_dir, "uploads", "statelink"),
+        )
+        resp = await download(client, sandbox["id"], "/uploads/statelink")
         if resp.status_code == 200:
-            content = resp.json().get("content", "")
-            assert "sandboxes" not in content
+            assert b"sandboxes" not in resp.content
         else:
             assert resp.status_code in (400, 404)
 
     async def test_symlink_chain_escape(self, client: httpx.AsyncClient, sandbox: dict):
         root_dir = sandbox["root_dir"]
-        os.symlink("../../etc/passwd", os.path.join(root_dir, "a"))
-        os.symlink("a", os.path.join(root_dir, "b"))
-        resp = await fs_read(client, sandbox["id"], "/b")
+        os.symlink("../../etc/passwd", os.path.join(root_dir, "uploads", "a"))
+        os.symlink("a", os.path.join(root_dir, "uploads", "b"))
+        resp = await download(client, sandbox["id"], "/uploads/b")
         if resp.status_code == 200:
-            assert "root:" not in resp.json().get("content", "")
+            assert b"root:" not in resp.content
         else:
             assert resp.status_code in (400, 404)
 
@@ -109,21 +76,11 @@ class TestSymlinkEscape:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         root_dir = sandbox["root_dir"]
-        os.makedirs(os.path.join(root_dir, "sub"), exist_ok=True)
-        os.symlink("../../etc/passwd", os.path.join(root_dir, "sub", "link"))
-        resp = await fs_read(client, sandbox["id"], "/sub/link")
+        sub = os.path.join(root_dir, "uploads", "sub")
+        os.makedirs(sub, exist_ok=True)
+        os.symlink("../../../etc/passwd", os.path.join(sub, "link"))
+        resp = await download(client, sandbox["id"], "/uploads/sub/link")
         if resp.status_code == 200:
-            assert "root:" not in resp.json().get("content", "")
-        else:
-            assert resp.status_code in (400, 404)
-
-    async def test_symlink_to_sandbox_base_dir(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        root_dir = sandbox["root_dir"]
-        os.symlink("/var/lib/agentjail/sandboxes", os.path.join(root_dir, "sandboxes"))
-        resp = await fs_list(client, sandbox["id"], "/sandboxes")
-        if resp.status_code == 200:
-            assert len(resp.json()) == 0
+            assert b"root:" not in resp.content
         else:
             assert resp.status_code in (400, 404)

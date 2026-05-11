@@ -19,22 +19,6 @@ def _get_manager() -> SandboxManager:
 
 
 @mcp.tool
-async def sandbox_run(
-    command: str,
-    time_limit: int = 30,
-    memory_limit: int = 256,
-    env: dict[str, str] | None = None,
-) -> str:
-    """Create an ephemeral sandbox, run a command, return the output, and destroy it."""
-    result, sandbox_id = await _get_manager().sandbox_run(
-        command, time_limit=time_limit, memory_limit=memory_limit, env=env
-    )
-    return result.model_copy(
-        update={"stdout": f"[sandbox_id={sandbox_id}]\n{result.stdout}"}
-    ).model_dump_json()
-
-
-@mcp.tool
 async def sandbox_create(
     name: str | None = None,
     time_limit: int = 30,
@@ -55,13 +39,6 @@ async def sandbox_create(
         network=network,
     )
     return sandbox.model_dump_json()
-
-
-@mcp.tool
-async def sandbox_list() -> str:
-    """List all sandboxes with their current status."""
-    sandboxes = await _get_manager().sandbox_list()
-    return f"[{','.join(s.model_dump_json() for s in sandboxes)}]"
 
 
 @mcp.tool
@@ -110,44 +87,3 @@ async def sandbox_shell(
     """Execute a shell command string with pipes, redirects, and shell syntax."""
     result = await _get_manager().sandbox_shell(sandbox_id, command, timeout=timeout)
     return result.model_dump_json()
-
-
-@mcp.tool
-async def sandbox_fs_read(sandbox_id: str, path: str) -> str:
-    """Read a file from the sandbox filesystem."""
-    return await _get_manager().sandbox_fs_read(sandbox_id, path)
-
-
-@mcp.tool
-async def sandbox_fs_write(sandbox_id: str, path: str, content: str) -> str:
-    """Write content to a file inside the sandbox."""
-    await _get_manager().sandbox_fs_write(sandbox_id, path, content)
-    return f'{{"status": "written", "path": "{path}"}}'
-
-
-@mcp.tool
-async def sandbox_fs_list(sandbox_id: str, path: str = "/") -> str:
-    """List directory contents in the sandbox."""
-    entries = await _get_manager().sandbox_fs_list(sandbox_id, path)
-    return f"[{','.join(e.model_dump_json() for e in entries)}]"
-
-
-@mcp.tool
-async def sandbox_fs_mkdir(sandbox_id: str, path: str) -> str:
-    """Create a directory with parent directories in the sandbox."""
-    await _get_manager().sandbox_fs_mkdir(sandbox_id, path)
-    return f'{{"status": "created", "path": "{path}"}}'
-
-
-@mcp.tool
-async def sandbox_fs_remove(sandbox_id: str, path: str) -> str:
-    """Remove a file or directory from the sandbox."""
-    await _get_manager().sandbox_fs_remove(sandbox_id, path)
-    return f'{{"status": "removed", "path": "{path}"}}'
-
-
-@mcp.tool
-async def sandbox_fs_stat(sandbox_id: str, path: str) -> str:
-    """Get file metadata (kind, size, mode, modified time) from the sandbox."""
-    info = await _get_manager().sandbox_fs_stat(sandbox_id, path)
-    return info.model_dump_json()

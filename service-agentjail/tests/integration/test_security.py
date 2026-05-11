@@ -3,76 +3,42 @@ import pytest
 
 from helpers import (
     create_sandbox,
+    download,
     exec_cmd,
-    fs_list,
-    fs_mkdir,
-    fs_read,
-    fs_remove,
-    fs_stat,
-    fs_write,
     remove_sandbox,
     shell,
+    upload,
 )
 
 
 # ---------------------------------------------------------------------------
-# Path traversal via filesystem API
+# Path traversal via download API
 # ---------------------------------------------------------------------------
 
 
 class TestPathTraversalAPI:
-    async def test_path_traversal_read_etc_passwd(
+    async def test_path_traversal_download_etc_passwd(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        resp = await fs_read(client, sandbox["id"], "../../etc/passwd")
+        resp = await download(client, sandbox["id"], "../../etc/passwd")
         assert resp.status_code == 400
 
-    async def test_path_traversal_read_absolute(
+    async def test_path_traversal_download_absolute(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        resp = await fs_read(client, sandbox["id"], "/../../etc/passwd")
+        resp = await download(client, sandbox["id"], "/../../etc/passwd")
         assert resp.status_code == 400
 
-    async def test_path_traversal_write_outside(
+    async def test_path_traversal_download_encoded_slashes(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        resp = await fs_write(client, sandbox["id"], "../../tmp/evil.txt", "pwned")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_mkdir_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_mkdir(client, sandbox["id"], "../../tmp/evil")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_remove_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_remove(client, sandbox["id"], "../../etc/hostname")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_stat_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_stat(client, sandbox["id"], "../../etc/hostname")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_list_outside(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_list(client, sandbox["id"], "../../etc")
-        assert resp.status_code == 400
-
-    async def test_path_traversal_encoded_slashes(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        resp = await fs_read(client, sandbox["id"], "%2e%2e%2f%2e%2e%2fetc%2fpasswd")
+        resp = await download(client, sandbox["id"], "%2e%2e%2f%2e%2e%2fetc%2fpasswd")
         assert resp.status_code in (400, 404)
 
-    async def test_path_traversal_null_byte(
+    async def test_path_traversal_download_null_byte(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        resp = await fs_read(client, sandbox["id"], "/test.txt\x00../../etc/passwd")
+        resp = await download(client, sandbox["id"], "/test.txt\x00../../etc/passwd")
         assert resp.status_code in (400, 404, 422, 500)
 
 
@@ -86,9 +52,9 @@ class TestSymlinkEscape:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         await shell(client, sandbox["id"], "ln -s /etc/passwd /home/link")
-        resp = await fs_read(client, sandbox["id"], "/link")
+        resp = await download(client, sandbox["id"], "/home/link")
         if resp.status_code == 200:
-            assert "root:" not in resp.json().get("content", "")
+            assert b"root:" not in resp.content
         else:
             assert resp.status_code in (400, 404)
 
@@ -96,21 +62,22 @@ class TestSymlinkEscape:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         await shell(
-            client, sandbox["id"], "ln -s /var/lib/agentjail/state.json /home/statelink"
+            client,
+            sandbox["id"],
+            "ln -s /var/lib/agentjail/state.json /home/statelink",
         )
-        resp = await fs_read(client, sandbox["id"], "/statelink")
+        resp = await download(client, sandbox["id"], "/home/statelink")
         if resp.status_code == 200:
-            content = resp.json().get("content", "")
-            assert "sandboxes" not in content
+            assert b"sandboxes" not in resp.content
         else:
             assert resp.status_code in (400, 404)
 
     async def test_symlink_chain_escape(self, client: httpx.AsyncClient, sandbox: dict):
         await shell(client, sandbox["id"], "ln -s ../../etc/passwd /home/a")
         await shell(client, sandbox["id"], "ln -s /home/a /home/b")
-        resp = await fs_read(client, sandbox["id"], "/b")
+        resp = await download(client, sandbox["id"], "/home/b")
         if resp.status_code == 200:
-            assert "root:" not in resp.json().get("content", "")
+            assert b"root:" not in resp.content
         else:
             assert resp.status_code in (400, 404)
 
@@ -119,9 +86,9 @@ class TestSymlinkEscape:
     ):
         await shell(client, sandbox["id"], "mkdir -p /home/sub")
         await shell(client, sandbox["id"], "ln -s ../../etc/passwd /home/sub/link")
-        resp = await fs_read(client, sandbox["id"], "/sub/link")
+        resp = await download(client, sandbox["id"], "/home/sub/link")
         if resp.status_code == 200:
-            assert "root:" not in resp.json().get("content", "")
+            assert b"root:" not in resp.content
         else:
             assert resp.status_code in (400, 404)
 
@@ -129,13 +96,12 @@ class TestSymlinkEscape:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         await shell(
-            client, sandbox["id"], "ln -s /var/lib/agentjail/sandboxes /home/sandboxes"
+            client,
+            sandbox["id"],
+            "ln -s /var/lib/agentjail/sandboxes /home/sandboxes",
         )
-        resp = await fs_list(client, sandbox["id"], "/sandboxes")
-        if resp.status_code == 200:
-            assert len(resp.json()) == 0
-        else:
-            assert resp.status_code in (400, 404)
+        resp = await download(client, sandbox["id"], "/home/sandboxes")
+        assert resp.status_code in (400, 404)
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +139,6 @@ class TestShellEscape:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         result = await shell(client, sandbox["id"], "cat /proc/1/environ 2>/dev/null")
-        # /proc is not mounted, so cat should fail or return empty
         assert result["exit_code"] != 0 or "AGENTJAIL" not in result["stdout"]
 
     async def test_shell_env_does_not_leak_host_vars(
@@ -211,6 +176,15 @@ class TestReadOnlyMounts:
         result = await shell(client, sandbox["id"], "touch /lib/evil")
         assert result["exit_code"] != 0
 
+    async def test_cannot_write_to_uploads(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
+        await upload(client, sandbox["id"], "protected.txt", b"data")
+        result = await shell(
+            client, sandbox["id"], "echo tampered > /uploads/protected.txt"
+        )
+        assert result["exit_code"] != 0
+
     async def test_can_write_to_home(self, client: httpx.AsyncClient, sandbox: dict):
         result = await shell(
             client, sandbox["id"], "echo ok > /home/test.txt && cat /home/test.txt"
@@ -242,16 +216,14 @@ class TestProcessIsolation:
     async def test_pid_namespace_isolation(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        # /proc is not mounted — verify PID isolation via echo $$
         result = await shell(client, sandbox["id"], "echo $$")
         assert result["exit_code"] == 0
         pid = int(result["stdout"].strip())
-        assert pid < 100  # Low PID confirms isolated namespace
+        assert pid < 100
 
     async def test_cannot_see_host_processes(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        # /proc is not mounted — ls /proc should fail
         result = await shell(
             client, sandbox["id"], "ls /proc/ 2>/dev/null | grep -E '^[0-9]+$' | wc -l"
         )
@@ -264,7 +236,6 @@ class TestProcessIsolation:
     ):
         result = await shell(client, sandbox["id"], "kill -0 1 2>&1; echo $?")
         output = result["stdout"].strip().split("\n")[-1]
-        # PID 1 inside the jail is the sandboxed process itself, so kill -0 1 may succeed
         assert output in ("0", "1") or result["exit_code"] != 0
 
     async def test_pids_limit_enforcement(self, client: httpx.AsyncClient):
@@ -294,7 +265,9 @@ class TestNetworkIsolation:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         result = await shell(
-            client, sandbox["id"], "ping -c 1 -W 1 8.8.8.8 2>&1 || echo NETWORK_BLOCKED"
+            client,
+            sandbox["id"],
+            "ping -c 1 -W 1 8.8.8.8 2>&1 || echo NETWORK_BLOCKED",
         )
         assert "NETWORK_BLOCKED" in result["stdout"] or result["exit_code"] != 0
 
@@ -302,7 +275,9 @@ class TestNetworkIsolation:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         result = await shell(
-            client, sandbox["id"], "getent hosts google.com 2>&1 || echo DNS_BLOCKED"
+            client,
+            sandbox["id"],
+            "getent hosts google.com 2>&1 || echo DNS_BLOCKED",
         )
         assert "DNS_BLOCKED" in result["stdout"] or result["exit_code"] != 0
 
@@ -403,7 +378,7 @@ class TestCrossSandboxIsolation:
         sb_a = await create_sandbox(client)
         sb_b = await create_sandbox(client)
         try:
-            await fs_write(client, sb_a["id"], "/secret.txt", "secret-data")
+            await shell(client, sb_a["id"], "echo secret-data > /home/secret.txt")
             result = await shell(client, sb_b["id"], "ls /home/")
             assert "secret.txt" not in result["stdout"]
         finally:
@@ -444,9 +419,7 @@ class TestCrossSandboxIsolation:
 
 class TestProcAbuse:
     async def test_proc_is_not_mounted(self, client: httpx.AsyncClient, sandbox: dict):
-        """With /proc removed from nsjail mounts, it should not be accessible."""
         result = await shell(client, sandbox["id"], "ls /proc 2>&1")
-        # /proc should not exist or be empty
         assert result["exit_code"] != 0 or "No such file" in result["stdout"]
 
     async def test_cannot_read_host_proc_1_cmdline(
@@ -456,7 +429,6 @@ class TestProcAbuse:
             client, sandbox["id"], "cat /proc/1/cmdline 2>/dev/null || echo BLOCKED"
         )
         stdout = result["stdout"]
-        # /proc is not mounted, so either cat fails (BLOCKED) or returns nothing
         assert "uvicorn" not in stdout
         assert "agentjail" not in stdout
 
@@ -464,7 +436,6 @@ class TestProcAbuse:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         result = await shell(client, sandbox["id"], "cat /proc/net/dev 2>/dev/null")
-        # /proc not mounted — should fail or return empty
         assert result["exit_code"] != 0 or result["stdout"].strip() == ""
 
 

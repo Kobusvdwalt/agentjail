@@ -6,25 +6,13 @@ from agentjail.sandbox.manager import (
     SandboxNotFound,
     SandboxStillRunning,
 )
-from agentjail.sandbox.models import ExecResult, SandboxState
+from agentjail.sandbox.models import SandboxState
 
 router = APIRouter()
 
 
 def get_manager(request: Request) -> SandboxManager:
     return request.app.state.manager
-
-
-class SandboxRunRequest(BaseModel):
-    command: str
-    time_limit: int | None = None
-    memory_limit: int | None = None
-    env: dict[str, str] | None = None
-
-
-class SandboxRunResponse(BaseModel):
-    result: ExecResult
-    sandbox_id: str
 
 
 class SandboxCreateRequest(BaseModel):
@@ -35,19 +23,6 @@ class SandboxCreateRequest(BaseModel):
     env: dict[str, str] | None = None
     cwd: str = "/home"
     network: bool = False
-
-
-@router.post("/sandbox/run")
-async def sandbox_run(
-    body: SandboxRunRequest, manager: SandboxManager = Depends(get_manager)
-) -> SandboxRunResponse:
-    result, sandbox_id = await manager.sandbox_run(
-        body.command,
-        time_limit=body.time_limit,
-        memory_limit=body.memory_limit,
-        env=body.env,
-    )
-    return SandboxRunResponse(result=result, sandbox_id=sandbox_id)
 
 
 @router.post("/sandbox")
@@ -63,13 +38,6 @@ async def sandbox_create(
         cwd=body.cwd,
         network=body.network,
     )
-
-
-@router.get("/sandbox")
-async def sandbox_list(
-    manager: SandboxManager = Depends(get_manager),
-) -> list[SandboxState]:
-    return await manager.sandbox_list()
 
 
 @router.get("/sandbox/{sandbox_id}")
