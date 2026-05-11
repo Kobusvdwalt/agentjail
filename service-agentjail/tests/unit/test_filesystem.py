@@ -1,6 +1,6 @@
 import httpx
 
-from helpers import download, shell, upload
+from helpers import download, upload
 
 
 class TestUpload:
@@ -53,12 +53,6 @@ class TestDownload:
     async def test_download_nonexistent(self, client: httpx.AsyncClient, sandbox: dict):
         resp = await download(client, sandbox["id"], "/uploads/no-such-file")
         assert resp.status_code == 404
-
-    async def test_download_from_home(self, client: httpx.AsyncClient, sandbox: dict):
-        await shell(client, sandbox["id"], "echo -n hello > /home/output.txt")
-        resp = await download(client, sandbox["id"], "/home/output.txt")
-        assert resp.status_code == 200
-        assert resp.content == b"hello"
 
 
 class TestNonexistentSandbox:

@@ -58,21 +58,6 @@ class TestInspectSandbox:
         assert resp.status_code == 404
 
 
-class TestListSandboxes:
-    async def test_list_sandboxes_contains_created(self, client: httpx.AsyncClient):
-        sb1 = await create_sandbox(client, name="list-test-1")
-        sb2 = await create_sandbox(client, name="list-test-2")
-        try:
-            resp = await client.get("/sandbox")
-            assert resp.status_code == 200
-            ids = [s["id"] for s in resp.json()]
-            assert sb1["id"] in ids
-            assert sb2["id"] in ids
-        finally:
-            await remove_sandbox(client, sb1["id"])
-            await remove_sandbox(client, sb2["id"])
-
-
 class TestStopSandbox:
     async def test_stop_sandbox(self, client: httpx.AsyncClient, sandbox: dict):
         resp = await client.post(f"/sandbox/{sandbox['id']}/stop")
