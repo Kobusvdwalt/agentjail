@@ -4,7 +4,6 @@ import pytest
 from helpers import (
     create_sandbox,
     download,
-    exec_cmd,
     remove_sandbox,
     shell,
     upload,
@@ -538,12 +537,10 @@ class TestEnvLeakage:
     async def test_per_exec_env_override(self, client: httpx.AsyncClient):
         sb = await create_sandbox(client, env={"X": "original"})
         try:
-            result = await exec_cmd(
+            result = await shell(
                 client,
                 sb["id"],
-                "/bin/sh",
-                args=["-c", "echo $X"],
-                env={"X": "override"},
+                "X=override echo $X",
             )
             assert "override" in result["stdout"]
         finally:

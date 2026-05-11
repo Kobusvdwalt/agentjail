@@ -68,13 +68,12 @@ The server starts on `http://localhost:8000`.
 
 ### MCP (for Claude / Cursor)
 
-Point your MCP client at `http://localhost:8000/mcp`. The server exposes 14 tools:
+Point your MCP client at `http://localhost:8000/mcp`. The server exposes 13 tools:
 
 | Tool | Description |
 |---|---|
 | `sandbox_run` | Ephemeral: run a command, get output, sandbox is destroyed |
 | `sandbox_create` | Create a persistent sandbox (returns an ID) |
-| `sandbox_exec` | Execute a binary with arguments in a sandbox |
 | `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
 | `sandbox_fs_read` | Read a file from the sandbox |
 | `sandbox_fs_write` | Write a file to the sandbox |
@@ -129,7 +128,6 @@ GET    /api/v1/sandbox               — list sandboxes
 GET    /api/v1/sandbox/{id}          — inspect sandbox
 POST   /api/v1/sandbox/{id}/stop     — mark sandbox stopped
 DELETE /api/v1/sandbox/{id}          — remove sandbox (force=true to remove running)
-POST   /api/v1/sandbox/{id}/exec    — run command (direct execve, with args)
 POST   /api/v1/sandbox/{id}/shell   — run shell command (via /bin/sh -c)
 GET    /api/v1/sandbox/{id}/fs/read?path=
 POST   /api/v1/sandbox/{id}/fs/write

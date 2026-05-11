@@ -9,7 +9,6 @@ GET    /api/v1/sandbox              — list sandboxes
 GET    /api/v1/sandbox/{id}         — inspect sandbox
 POST   /api/v1/sandbox/{id}/stop    — mark sandbox stopped
 DELETE /api/v1/sandbox/{id}         — remove sandbox (force=true to remove running)
-POST   /api/v1/sandbox/{id}/exec   — run command (direct execve, with args)
 POST   /api/v1/sandbox/{id}/shell  — run shell command (via /bin/sh -c)
 GET    /api/v1/sandbox/{id}/fs/read?path=
 POST   /api/v1/sandbox/{id}/fs/write
@@ -20,7 +19,7 @@ GET    /api/v1/sandbox/{id}/fs/stat?path=
 GET    /api/v1/state                — raw state file
 ```
 
-## MCP Tools (14)
+## MCP Tools (13)
 
 | Tool | Description |
 |---|---|
@@ -30,7 +29,6 @@ GET    /api/v1/state                — raw state file
 | `sandbox_inspect` | Get sandbox details |
 | `sandbox_stop` | Stop a sandbox |
 | `sandbox_remove` | Remove a sandbox and its files |
-| `sandbox_exec` | Execute a binary with arguments in a sandbox |
 | `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
 | `sandbox_fs_read` | Read a file from the sandbox |
 | `sandbox_fs_write` | Write a file to the sandbox |

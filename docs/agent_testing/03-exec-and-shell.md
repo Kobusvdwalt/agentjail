@@ -1,6 +1,6 @@
-# 03 — Exec and Shell Tests
+# 03 — Shell Tests
 
-Tests for running commands inside persistent sandboxes via `exec` and `shell` endpoints.
+Tests for running commands inside persistent sandboxes via the `shell` endpoint.
 
 **Setup:** Create a sandbox before running these tests.
 
@@ -57,55 +57,7 @@ curl -s -X POST $BASE/sandbox/$SID/shell \
 
 ---
 
-## EX-04: Exec — run a binary with args
-
-```bash
-curl -s -X POST $BASE/sandbox/$SID/exec \
-  -H 'Content-Type: application/json' \
-  -d '{"command": "/bin/echo", "args": ["-n", "no-newline"]}'
-```
-
-**Expected:**
-- HTTP 200
-- `exit_code` == 0
-- `stdout` == `"no-newline"` (no trailing newline)
-
----
-
-## EX-05: Exec — custom cwd
-
-```bash
-# First create a directory
-curl -s -X POST $BASE/sandbox/$SID/shell \
-  -H 'Content-Type: application/json' \
-  -d '{"command": "mkdir -p /home/subdir && echo marker > /home/subdir/flag.txt"}'
-
-# Then exec with cwd set
-curl -s -X POST $BASE/sandbox/$SID/exec \
-  -H 'Content-Type: application/json' \
-  -d '{"command": "/bin/cat", "args": ["flag.txt"], "cwd": "/home/subdir"}'
-```
-
-**Expected:**
-- Second call: `exit_code` == 0, `stdout` == `"marker\n"`
-
----
-
-## EX-06: Exec — custom environment
-
-```bash
-curl -s -X POST $BASE/sandbox/$SID/exec \
-  -H 'Content-Type: application/json' \
-  -d '{"command": "/bin/sh", "args": ["-c", "echo $MY_KEY"], "env": {"MY_KEY": "secret123"}}'
-```
-
-**Expected:**
-- `exit_code` == 0
-- `stdout` == `"secret123\n"`
-
----
-
-## EX-07: Shell — per-command timeout
+## EX-04: Shell — per-command timeout
 
 ```bash
 curl -s -X POST $BASE/sandbox/$SID/shell \

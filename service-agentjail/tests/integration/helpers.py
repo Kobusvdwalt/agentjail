@@ -24,29 +24,6 @@ async def shell(
     return resp.json()
 
 
-async def exec_cmd(
-    client: httpx.AsyncClient,
-    sandbox_id: str,
-    command: str,
-    args: list[str] | None = None,
-    cwd: str | None = None,
-    env: dict[str, str] | None = None,
-    timeout: int | None = None,
-) -> dict:
-    body: dict = {"command": command}
-    if args is not None:
-        body["args"] = args
-    if cwd is not None:
-        body["cwd"] = cwd
-    if env is not None:
-        body["env"] = env
-    if timeout is not None:
-        body["timeout"] = timeout
-    resp = await client.post(f"/sandbox/{sandbox_id}/exec", json=body)
-    assert resp.status_code == 200
-    return resp.json()
-
-
 async def upload(
     client: httpx.AsyncClient,
     sandbox_id: str,
