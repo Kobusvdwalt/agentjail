@@ -112,7 +112,8 @@ class NsjailRunner:
         if sandbox.config.network:
             args.append("--disable_clone_newnet")
 
-        args.extend(["--log_fd", "2"])
+        log_file = str(Path(sandbox.root_dir) / "nsjail.log")
+        args.extend(["--log", log_file])
         args.append("--")
         args.extend(command)
         return args

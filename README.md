@@ -68,23 +68,16 @@ The server starts on `http://localhost:8000`.
 
 ### MCP (for Claude / Cursor)
 
-Point your MCP client at `http://localhost:8000/mcp`. The server exposes 13 tools:
+Point your MCP client at `http://localhost:8000/mcp`. The server exposes 6 tools:
 
 | Tool | Description |
 |---|---|
-| `sandbox_run` | Ephemeral: run a command, get output, sandbox is destroyed |
 | `sandbox_create` | Create a persistent sandbox (returns an ID) |
-| `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
-| `sandbox_fs_read` | Read a file from the sandbox |
-| `sandbox_fs_write` | Write a file to the sandbox |
-| `sandbox_fs_list` | List directory contents |
-| `sandbox_fs_mkdir` | Create directories |
-| `sandbox_fs_remove` | Remove files or directories |
-| `sandbox_fs_stat` | Get file metadata |
-| `sandbox_list` | List all sandboxes |
 | `sandbox_inspect` | Get sandbox details |
 | `sandbox_stop` | Stop a sandbox |
 | `sandbox_remove` | Remove a sandbox and its files |
+| `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
+| `sandbox_download` | Prepare a file for download (returns a URL to fetch it) |
 
 ### REST API
 
@@ -104,15 +97,17 @@ curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/shell \
   -H 'Content-Type: application/json' \
   -d '{"command": "python3 -c \"print(42 ** 10)\""}'
 
-# Write a file
-curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/fs/write \
-  -H 'Content-Type: application/json' \
-  -d '{"path": "/hello.py", "content": "print(\"hello from the sandbox\")"}'
+# Upload a file
+curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/fs/upload \
+  -F 'file=@hello.py'
 
 # Execute it
 curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/shell \
   -H 'Content-Type: application/json' \
-  -d '{"command": "python3 /home/hello.py"}'
+  -d '{"command": "python3 /home/uploads/hello.py"}'
+
+# Prepare a file for download (returns a URL)
+curl -X POST "http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/download?path=/home/uploads/hello.py"
 
 # Clean up
 curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/stop
@@ -122,19 +117,16 @@ curl -X DELETE http://localhost:8000/api/v1/sandbox/$SANDBOX_ID
 ### Full REST API Surface
 
 ```
-POST   /api/v1/sandbox/run           — ephemeral: run command, return result, cleanup
 POST   /api/v1/sandbox               — create persistent sandbox
-GET    /api/v1/sandbox               — list sandboxes
 GET    /api/v1/sandbox/{id}          — inspect sandbox
 POST   /api/v1/sandbox/{id}/stop     — mark sandbox stopped
 DELETE /api/v1/sandbox/{id}          — remove sandbox (force=true to remove running)
 POST   /api/v1/sandbox/{id}/shell   — run shell command (via /bin/sh -c)
-GET    /api/v1/sandbox/{id}/fs/read?path=
-POST   /api/v1/sandbox/{id}/fs/write
-GET    /api/v1/sandbox/{id}/fs/list?path=
-POST   /api/v1/sandbox/{id}/fs/mkdir
-DELETE /api/v1/sandbox/{id}/fs?path=
-GET    /api/v1/sandbox/{id}/fs/stat?path=
+POST   /api/v1/sandbox/{id}/fs/upload   — upload a file (multipart)
+GET    /api/v1/sandbox/{id}/fs/download?path= — download a file directly
+POST   /api/v1/sandbox/{id}/download?path=    — prepare file for download (returns URL)
+GET    /api/v1/sandbox/{id}/downloads/{name}  — fetch a prepared download
+GET    /api/v1/state                 — raw state file
 ```
 
 ## Sandbox Options

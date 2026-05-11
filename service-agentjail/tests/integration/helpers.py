@@ -41,3 +41,15 @@ async def download(
     client: httpx.AsyncClient, sandbox_id: str, path: str
 ) -> httpx.Response:
     return await client.get(f"/sandbox/{sandbox_id}/fs/download", params={"path": path})
+
+
+async def sandbox_download(
+    client: httpx.AsyncClient, sandbox_id: str, path: str
+) -> httpx.Response:
+    return await client.post(f"/sandbox/{sandbox_id}/download", params={"path": path})
+
+
+async def fetch_download(
+    client: httpx.AsyncClient, sandbox_id: str, filename: str
+) -> httpx.Response:
+    return await client.get(f"/sandbox/{sandbox_id}/downloads/{filename}")

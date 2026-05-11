@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from agentjail.sandbox.filesystem import _resolve_safe
+
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.filesystem import (
     fs_resolve,
@@ -155,6 +157,31 @@ class SandboxManager:
         return await self.runner.run_command(
             sandbox, ["/bin/sh", "-c", command], timeout=timeout
         )
+
+    async def sandbox_download(self, sandbox_id: str, path: str) -> dict:
+        sandbox = self._get_sandbox(sandbox_id)
+        root_dir = Path(sandbox.root_dir)
+        source = fs_resolve(root_dir, path)
+        downloads_dir = root_dir / "downloads"
+        downloads_dir.mkdir(exist_ok=True)
+        ext = source.suffix
+        dest_name = f"{uuid4()}{ext}"
+        dest = downloads_dir / dest_name
+        shutil.copy2(source, dest)
+        return {
+            "download_url": f"/api/v1/sandbox/{sandbox_id}/downloads/{dest_name}",
+            "filename": source.name,
+            "size": dest.stat().st_size,
+        }
+
+    async def sandbox_download_resolve(self, sandbox_id: str, filename: str) -> Path:
+        sandbox = self._get_sandbox(sandbox_id)
+        root_dir = Path(sandbox.root_dir)
+        downloads_dir = root_dir / "downloads"
+        resolved = _resolve_safe(downloads_dir, filename)
+        if not resolved.is_file():
+            raise FileNotFoundError(f"Not a file: {filename}")
+        return resolved
 
     async def sandbox_fs_download(self, sandbox_id: str, path: str) -> Path:
         sandbox = self._get_sandbox(sandbox_id)
