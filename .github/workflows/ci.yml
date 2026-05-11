@@ -57,4 +57,10 @@ jobs:
           enable-cache: true
 
       - run: uv sync --extra dev
+      - name: Debug nsjail in container
+        working-directory: service-agentjail
+        run: |
+          docker build -f dev.dockerfile -t agentjail-debug .
+          docker run --privileged --rm agentjail-debug sh -c "nsjail --help 2>&1 | head -5 || true"
+          docker run --privileged --rm agentjail-debug sh -c "nsjail --mode o --user 1000 --group 1000 --time_limit 5 -- /bin/echo hello 2>&1 || echo EXIT_CODE=\$?"
       - run: uv run pytest tests/integration -v
