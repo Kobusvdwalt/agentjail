@@ -37,6 +37,7 @@ def fs_remove(root_dir: Path, path: str) -> None:
     target = _resolve_safe(root_dir, path)
     if target.is_dir():
         import shutil
+
         shutil.rmtree(target)
     else:
         target.unlink()

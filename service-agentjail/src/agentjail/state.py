@@ -36,9 +36,7 @@ class StateManager:
 
     def _write(self, state: StateFile) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp_path = tempfile.mkstemp(
-            dir=self._path.parent, suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=self._path.parent, suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as f:
                 f.write(state.model_dump_json(indent=2))

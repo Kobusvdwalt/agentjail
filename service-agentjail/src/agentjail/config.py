@@ -20,4 +20,12 @@ class AgentjailSettings(BaseSettings):
     default_memory_limit: int = 256
     default_pids_limit: int = 64
 
-    bind_mount_ro: list[str] = ["/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc", "/sys/fs/cgroup"]
+    bind_mount_ro: list[str] = [
+        "/usr",
+        "/lib",
+        "/lib64",
+        "/bin",
+        "/sbin",
+        "/etc",
+        "/sys/fs/cgroup",
+    ]

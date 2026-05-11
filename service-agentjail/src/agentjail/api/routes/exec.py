@@ -42,7 +42,9 @@ async def sandbox_exec(
     except SandboxNotFound:
         raise HTTPException(status_code=404, detail=f"Sandbox {sandbox_id} not found")
     except SandboxNotRunning:
-        raise HTTPException(status_code=409, detail=f"Sandbox {sandbox_id} is not running")
+        raise HTTPException(
+            status_code=409, detail=f"Sandbox {sandbox_id} is not running"
+        )
 
 
 @router.post("/sandbox/{sandbox_id}/shell")
@@ -58,4 +60,6 @@ async def sandbox_shell(
     except SandboxNotFound:
         raise HTTPException(status_code=404, detail=f"Sandbox {sandbox_id} not found")
     except SandboxNotRunning:
-        raise HTTPException(status_code=409, detail=f"Sandbox {sandbox_id} is not running")
+        raise HTTPException(
+            status_code=409, detail=f"Sandbox {sandbox_id} is not running"
+        )

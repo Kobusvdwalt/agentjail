@@ -56,15 +56,24 @@ class NsjailRunner:
     ) -> list[str]:
         args = [
             self.settings.nsjail_bin,
-            "--mode", "o",
-            "--time_limit", str(timeout),
-            "--rlimit_as", str(sandbox.config.memory_limit),
-            "--max_cpus", "1",
-            "--rlimit_nproc", str(sandbox.config.pids_limit),
-            "--rlimit_fsize", "50",
-            "--rlimit_nofile", "256",
-            "--user", "1000",
-            "--group", "1000",
+            "--mode",
+            "o",
+            "--time_limit",
+            str(timeout),
+            "--rlimit_as",
+            str(sandbox.config.memory_limit),
+            "--max_cpus",
+            "1",
+            "--rlimit_nproc",
+            str(sandbox.config.pids_limit),
+            "--rlimit_fsize",
+            "50",
+            "--rlimit_nofile",
+            "256",
+            "--user",
+            "1000",
+            "--group",
+            "1000",
         ]
 
         for ro_mount in self.settings.bind_mount_ro:
@@ -83,7 +92,11 @@ class NsjailRunner:
 
         args.extend(["--cwd", cwd or sandbox.config.cwd])
 
-        merged_env = {"PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", "HOME": "/home", "TERM": "xterm"}
+        merged_env = {
+            "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+            "HOME": "/home",
+            "TERM": "xterm",
+        }
         merged_env.update(sandbox.config.env)
         if env:
             merged_env.update(env)

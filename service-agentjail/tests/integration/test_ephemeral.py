@@ -21,30 +21,41 @@ class TestEphemeralRun:
         assert "err" in data["result"]["stderr"]
 
     async def test_ephemeral_combined_output(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "echo out && echo err >&2"})
+        resp = await client.post(
+            "/sandbox/run", json={"command": "echo out && echo err >&2"}
+        )
         data = resp.json()
         assert "out" in data["result"]["stdout"]
         assert "err" in data["result"]["stderr"]
 
     async def test_ephemeral_with_env(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "echo $MY_VAR", "env": {"MY_VAR": "secret"}})
+        resp = await client.post(
+            "/sandbox/run",
+            json={"command": "echo $MY_VAR", "env": {"MY_VAR": "secret"}},
+        )
         data = resp.json()
         assert "secret" in data["result"]["stdout"]
 
     async def test_ephemeral_custom_time_limit(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "sleep 2 && echo done", "time_limit": 10})
+        resp = await client.post(
+            "/sandbox/run", json={"command": "sleep 2 && echo done", "time_limit": 10}
+        )
         data = resp.json()
         assert data["result"]["exit_code"] == 0
         assert "done" in data["result"]["stdout"]
 
     async def test_ephemeral_timeout(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "sleep 60", "time_limit": 2})
+        resp = await client.post(
+            "/sandbox/run", json={"command": "sleep 60", "time_limit": 2}
+        )
         data = resp.json()
         result = data["result"]
         assert result["timed_out"] or result["exit_code"] != 0
 
     async def test_ephemeral_custom_memory_limit(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "echo ok", "memory_limit": 64})
+        resp = await client.post(
+            "/sandbox/run", json={"command": "echo ok", "memory_limit": 64}
+        )
         data = resp.json()
         assert data["result"]["exit_code"] == 0
 
@@ -55,18 +66,24 @@ class TestEphemeralRun:
         assert resp.status_code == 404
 
     async def test_ephemeral_multiline_command(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "for i in 1 2 3; do echo $i; done"})
+        resp = await client.post(
+            "/sandbox/run", json={"command": "for i in 1 2 3; do echo $i; done"}
+        )
         data = resp.json()
         assert data["result"]["exit_code"] == 0
         for n in ["1", "2", "3"]:
             assert n in data["result"]["stdout"]
 
     async def test_ephemeral_pipe(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "echo hello | tr a-z A-Z"})
+        resp = await client.post(
+            "/sandbox/run", json={"command": "echo hello | tr a-z A-Z"}
+        )
         data = resp.json()
         assert "HELLO" in data["result"]["stdout"]
 
     async def test_ephemeral_binary_not_found(self, client: httpx.AsyncClient):
-        resp = await client.post("/sandbox/run", json={"command": "/nonexistent/binary"})
+        resp = await client.post(
+            "/sandbox/run", json={"command": "/nonexistent/binary"}
+        )
         data = resp.json()
         assert data["result"]["exit_code"] != 0

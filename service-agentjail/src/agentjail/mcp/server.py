@@ -29,7 +29,9 @@ async def sandbox_run(
     result, sandbox_id = await _get_manager().sandbox_run(
         command, time_limit=time_limit, memory_limit=memory_limit, env=env
     )
-    return result.model_copy(update={"stdout": f"[sandbox_id={sandbox_id}]\n{result.stdout}"}).model_dump_json()
+    return result.model_copy(
+        update={"stdout": f"[sandbox_id={sandbox_id}]\n{result.stdout}"}
+    ).model_dump_json()
 
 
 @mcp.tool

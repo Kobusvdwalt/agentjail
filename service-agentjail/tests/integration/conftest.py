@@ -34,7 +34,11 @@ def container(image):
             cap_add=["SYS_ADMIN"],
             security_opt=["apparmor=unconfined", "seccomp=unconfined"],
         )
-        .waiting_for(LogMessageWaitStrategy("Application startup complete").with_startup_timeout(60))
+        .waiting_for(
+            LogMessageWaitStrategy("Application startup complete").with_startup_timeout(
+                60
+            )
+        )
     ) as c:
         yield c
 

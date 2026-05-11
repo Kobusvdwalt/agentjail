@@ -20,7 +20,9 @@ class TestWriteAndRead:
         assert resp.status_code == 200
         assert resp.json()["content"] == "hello"
 
-    async def test_fs_write_creates_parent_dirs(self, client: httpx.AsyncClient, sandbox: dict):
+    async def test_fs_write_creates_parent_dirs(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
         resp = await fs_write(client, sandbox["id"], "/a/b/c/deep.txt", "nested")
         assert resp.status_code == 200
 
@@ -86,7 +88,9 @@ class TestList:
         assert "file.txt" in names
         assert "subdir" in names
 
-    async def test_fs_list_entries_have_correct_fields(self, client: httpx.AsyncClient, sandbox: dict):
+    async def test_fs_list_entries_have_correct_fields(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
         await fs_write(client, sandbox["id"], "/check.txt", "data")
 
         resp = await fs_list(client, sandbox["id"], "/")
@@ -99,7 +103,9 @@ class TestList:
         assert "mode" in entry
         assert "modified" in entry
 
-    async def test_fs_list_nonexistent_dir(self, client: httpx.AsyncClient, sandbox: dict):
+    async def test_fs_list_nonexistent_dir(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
         resp = await fs_list(client, sandbox["id"], "/no-such-dir")
         assert resp.status_code == 404
 
@@ -149,13 +155,17 @@ class TestRemove:
         resp = await fs_list(client, sandbox["id"], "/removedir")
         assert resp.status_code == 404
 
-    async def test_fs_remove_nonexistent(self, client: httpx.AsyncClient, sandbox: dict):
+    async def test_fs_remove_nonexistent(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
         resp = await fs_remove(client, sandbox["id"], "/nope")
         assert resp.status_code == 404
 
 
 class TestNonexistentSandbox:
-    async def test_fs_operations_on_nonexistent_sandbox(self, client: httpx.AsyncClient):
+    async def test_fs_operations_on_nonexistent_sandbox(
+        self, client: httpx.AsyncClient
+    ):
         fake_id = "nonexistent-uuid"
         assert (await fs_read(client, fake_id, "/x")).status_code == 404
         assert (await fs_write(client, fake_id, "/x", "y")).status_code == 404

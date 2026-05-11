@@ -49,7 +49,7 @@ def main() -> None:
     # do it again to catch any leaks.
     try:
         max_fd = os.sysconf("SC_OPEN_MAX")
-    except (ValueError, OSError):
+    except ValueError, OSError:
         max_fd = 4096
     os.closerange(3, max_fd)
 

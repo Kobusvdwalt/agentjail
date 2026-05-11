@@ -44,7 +44,9 @@ class SandboxManager:
         self.settings = settings
         self.state = StateManager(settings.state_file)
         self.runner: NsjailRunner | ChrootRunner = (
-            ChrootRunner(settings) if settings.runner == "chroot" else NsjailRunner(settings)
+            ChrootRunner(settings)
+            if settings.runner == "chroot"
+            else NsjailRunner(settings)
         )
         settings.sandbox_base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -159,7 +161,9 @@ class SandboxManager:
     ) -> ExecResult:
         sandbox = self._get_sandbox(sandbox_id, require_running=True)
         cmd = [command] + (args or [])
-        return await self.runner.run_command(sandbox, cmd, timeout=timeout, env=env, cwd=cwd)
+        return await self.runner.run_command(
+            sandbox, cmd, timeout=timeout, env=env, cwd=cwd
+        )
 
     async def sandbox_shell(
         self,
@@ -196,7 +200,9 @@ class SandboxManager:
         sandbox = self._get_sandbox(sandbox_id)
         return fs_stat(Path(sandbox.root_dir), path)
 
-    def _get_sandbox(self, sandbox_id: str, require_running: bool = False) -> SandboxState:
+    def _get_sandbox(
+        self, sandbox_id: str, require_running: bool = False
+    ) -> SandboxState:
         state = self.state.read()
         sandbox = state.sandboxes.get(sandbox_id)
         if not sandbox:

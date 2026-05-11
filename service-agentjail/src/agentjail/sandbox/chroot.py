@@ -126,7 +126,9 @@ class ChrootRunner:
         }
 
         proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "agentjail.sandbox._chroot_exec",
+            sys.executable,
+            "-m",
+            "agentjail.sandbox._chroot_exec",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

@@ -24,10 +24,18 @@ class MkdirRequest(BaseModel):
 def _handle_errors(sandbox_id: str):
     """Return a dict of exception types to HTTPException factories."""
     return {
-        SandboxNotFound: lambda: HTTPException(status_code=404, detail=f"Sandbox {sandbox_id} not found"),
-        PathTraversalError: lambda: HTTPException(status_code=400, detail="Path escapes sandbox root"),
-        FileNotFoundError: lambda: HTTPException(status_code=404, detail="File or directory not found"),
-        PermissionError: lambda: HTTPException(status_code=403, detail="Permission denied"),
+        SandboxNotFound: lambda: HTTPException(
+            status_code=404, detail=f"Sandbox {sandbox_id} not found"
+        ),
+        PathTraversalError: lambda: HTTPException(
+            status_code=400, detail="Path escapes sandbox root"
+        ),
+        FileNotFoundError: lambda: HTTPException(
+            status_code=404, detail="File or directory not found"
+        ),
+        PermissionError: lambda: HTTPException(
+            status_code=403, detail="Permission denied"
+        ),
     }
 
 
@@ -58,7 +66,9 @@ async def fs_write(
     body: WriteRequest,
     manager: SandboxManager = Depends(get_manager),
 ) -> dict:
-    await _try(sandbox_id, manager.sandbox_fs_write(sandbox_id, body.path, body.content))
+    await _try(
+        sandbox_id, manager.sandbox_fs_write(sandbox_id, body.path, body.content)
+    )
     return {"status": "written", "path": body.path}
 
 

@@ -4,7 +4,9 @@ from helpers import create_sandbox, remove_sandbox
 
 
 class TestCreateSandbox:
-    async def test_create_sandbox_defaults(self, client: httpx.AsyncClient, sandbox: dict):
+    async def test_create_sandbox_defaults(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
         assert sandbox["status"] == "running"
         assert len(sandbox["id"]) > 0
         assert sandbox["config"]["time_limit"] == 30
@@ -85,7 +87,9 @@ class TestStopSandbox:
         resp = await client.post("/sandbox/nonexistent-uuid/stop")
         assert resp.status_code == 404
 
-    async def test_stop_already_stopped_sandbox(self, client: httpx.AsyncClient, sandbox: dict):
+    async def test_stop_already_stopped_sandbox(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
         await client.post(f"/sandbox/{sandbox['id']}/stop")
         resp = await client.post(f"/sandbox/{sandbox['id']}/stop")
         assert resp.status_code == 200
@@ -102,7 +106,9 @@ class TestRemoveSandbox:
         resp = await client.get(f"/sandbox/{sb['id']}")
         assert resp.status_code == 404
 
-    async def test_remove_running_sandbox_without_force(self, client: httpx.AsyncClient, sandbox: dict):
+    async def test_remove_running_sandbox_without_force(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
         resp = await client.delete(f"/sandbox/{sandbox['id']}")
         assert resp.status_code == 409
 
