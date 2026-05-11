@@ -87,6 +87,7 @@ class NsjailRunner:
 
         args.extend(["--bindmount", f"{sandbox.root_dir}/home:/home"])
 
+        args.append("--disable_proc")
         args.extend(["--mount", "none:/tmp:tmpfs:size=67108864"])
         args.extend(["--mount", "none:/dev:tmpfs"])
         for dev in ("/dev/null", "/dev/zero", "/dev/urandom", "/dev/random"):
