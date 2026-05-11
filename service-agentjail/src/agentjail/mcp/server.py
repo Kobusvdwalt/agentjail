@@ -110,31 +110,3 @@ async def sandbox_shell(
     """Execute a shell command string with pipes, redirects, and shell syntax."""
     result = await _get_manager().sandbox_shell(sandbox_id, command, timeout=timeout)
     return result.model_dump_json()
-
-
-@mcp.tool
-async def sandbox_fs_list(sandbox_id: str, path: str = "/") -> str:
-    """List directory contents in the sandbox."""
-    entries = await _get_manager().sandbox_fs_list(sandbox_id, path)
-    return f"[{','.join(e.model_dump_json() for e in entries)}]"
-
-
-@mcp.tool
-async def sandbox_fs_mkdir(sandbox_id: str, path: str) -> str:
-    """Create a directory with parent directories in the sandbox."""
-    await _get_manager().sandbox_fs_mkdir(sandbox_id, path)
-    return f'{{"status": "created", "path": "{path}"}}'
-
-
-@mcp.tool
-async def sandbox_fs_remove(sandbox_id: str, path: str) -> str:
-    """Remove a file or directory from the sandbox."""
-    await _get_manager().sandbox_fs_remove(sandbox_id, path)
-    return f'{{"status": "removed", "path": "{path}"}}'
-
-
-@mcp.tool
-async def sandbox_fs_stat(sandbox_id: str, path: str) -> str:
-    """Get file metadata (kind, size, mode, modified time) from the sandbox."""
-    info = await _get_manager().sandbox_fs_stat(sandbox_id, path)
-    return info.model_dump_json()

@@ -5,16 +5,11 @@ from uuid import uuid4
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.filesystem import (
-    fs_list,
-    fs_mkdir,
-    fs_remove,
     fs_resolve,
-    fs_stat,
     fs_write,
 )
 from agentjail.sandbox.models import (
     ExecResult,
-    FileInfo,
     SandboxConfig,
     SandboxState,
 )
@@ -185,22 +180,6 @@ class SandboxManager:
     ) -> None:
         sandbox = self._get_sandbox(sandbox_id)
         fs_write(Path(sandbox.root_dir), path, content)
-
-    async def sandbox_fs_mkdir(self, sandbox_id: str, path: str) -> None:
-        sandbox = self._get_sandbox(sandbox_id)
-        fs_mkdir(Path(sandbox.root_dir), path)
-
-    async def sandbox_fs_remove(self, sandbox_id: str, path: str) -> None:
-        sandbox = self._get_sandbox(sandbox_id)
-        fs_remove(Path(sandbox.root_dir), path)
-
-    async def sandbox_fs_list(self, sandbox_id: str, path: str = "/") -> list[FileInfo]:
-        sandbox = self._get_sandbox(sandbox_id)
-        return fs_list(Path(sandbox.root_dir), path)
-
-    async def sandbox_fs_stat(self, sandbox_id: str, path: str) -> FileInfo:
-        sandbox = self._get_sandbox(sandbox_id)
-        return fs_stat(Path(sandbox.root_dir), path)
 
     def _get_sandbox(
         self, sandbox_id: str, require_running: bool = False
