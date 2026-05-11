@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from agentjail.sandbox.filesystem import PathTraversalError
@@ -75,11 +75,11 @@ async def fs_write(
 @router.post("/sandbox/{sandbox_id}/fs/upload")
 async def fs_upload(
     sandbox_id: str,
-    path: str = Form(...),
     file: UploadFile = File(...),
     manager: SandboxManager = Depends(get_manager),
 ) -> dict:
     content = await file.read()
+    path = f"/uploads/{file.filename}"
     await _try(sandbox_id, manager.sandbox_fs_write(sandbox_id, path, content))
     return {"status": "written", "path": path}
 
