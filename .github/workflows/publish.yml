@@ -27,7 +27,7 @@ jobs:
         with:
           enable-cache: true
 
-      - run: uv sync --dev
+      - run: uv sync --extra dev
       - run: uv run ruff check src/ tests/
       - run: uv run pytest tests/unit -m unit -v
 
