@@ -10,8 +10,9 @@ class NsjailRunner:
         self.settings = settings
 
     def setup_sandbox(self, root_dir: Path) -> None:
-        """Create the home directory that nsjail will bind-mount."""
+        """Create directories that nsjail will bind-mount."""
         (root_dir / "home").mkdir(exist_ok=True)
+        (root_dir / "uploads").mkdir(exist_ok=True)
 
     async def run_command(
         self,
@@ -86,6 +87,7 @@ class NsjailRunner:
                 args.extend(["--bindmount_ro", ro_mount])
 
         args.extend(["--bindmount", f"{sandbox.root_dir}/home:/home"])
+        args.extend(["--bindmount_ro", f"{sandbox.root_dir}/uploads:/uploads"])
 
         args.append("--disable_proc")
         args.extend(["--mount", "none:/tmp:tmpfs:size=67108864"])
