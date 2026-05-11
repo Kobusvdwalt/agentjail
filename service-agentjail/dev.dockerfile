@@ -14,10 +14,11 @@ FROM python:3.14-slim
 ENV UV_PYTHON_DOWNLOADS=0 UV_COMPILE_BYTECODE=0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libprotobuf32t64 libnl-route-3-200 \
+    libprotobuf32t64 libnl-route-3-200 libcap2-bin \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=nsjail-builder /nsjail/nsjail /usr/local/bin/nsjail
+RUN setcap cap_sys_admin,cap_sys_ptrace,cap_sys_chroot,cap_dac_override,cap_setuid,cap_setgid,cap_net_admin,cap_mknod+eip /usr/local/bin/nsjail
 
 RUN pip install uv
 
