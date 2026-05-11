@@ -11,6 +11,8 @@ class PathTraversalError(Exception):
 
 
 def _resolve_safe(root_dir: Path, user_path: str) -> Path:
+    if "\x00" in user_path:
+        raise PathTraversalError(f"Null byte in path: {user_path!r}")
     resolved = (root_dir / user_path.lstrip("/")).resolve()
     if not resolved.is_relative_to(root_dir.resolve()):
         raise PathTraversalError(f"Path escapes sandbox root: {user_path}")

@@ -177,7 +177,7 @@ class TestNonexistentSandbox:
 
 class TestSymlink:
     async def test_fs_stat_symlink(self, client: httpx.AsyncClient, sandbox: dict):
-        await fs_write(client, sandbox["id"], "/target.txt", "data")
+        await fs_write(client, sandbox["id"], "/home/target.txt", "data")
         await shell(client, sandbox["id"], "ln -s target.txt /home/link.txt")
-        resp = await fs_stat(client, sandbox["id"], "/link.txt")
+        resp = await fs_stat(client, sandbox["id"], "/home/link.txt")
         assert resp.status_code == 200

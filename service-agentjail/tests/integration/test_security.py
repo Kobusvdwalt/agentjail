@@ -173,8 +173,8 @@ class TestShellEscape:
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         result = await shell(client, sandbox["id"], "cat /proc/1/environ 2>/dev/null")
-        stdout = result["stdout"]
-        assert "AGENTJAIL" not in stdout
+        # /proc is not mounted, so cat should fail or return empty
+        assert result["exit_code"] != 0 or "AGENTJAIL" not in result["stdout"]
 
     async def test_shell_env_does_not_leak_host_vars(
         self, client: httpx.AsyncClient, sandbox: dict
@@ -242,16 +242,18 @@ class TestProcessIsolation:
     async def test_pid_namespace_isolation(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
-        result = await shell(
-            client, sandbox["id"], "cat /proc/self/status | grep -i '^pid:'"
-        )
+        # /proc is not mounted — verify PID isolation via echo $$
+        result = await shell(client, sandbox["id"], "echo $$")
         assert result["exit_code"] == 0
+        pid = int(result["stdout"].strip())
+        assert pid < 100  # Low PID confirms isolated namespace
 
     async def test_cannot_see_host_processes(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
+        # /proc is not mounted — ls /proc should fail
         result = await shell(
-            client, sandbox["id"], "ls /proc/ | grep -E '^[0-9]+$' | wc -l"
+            client, sandbox["id"], "ls /proc/ 2>/dev/null | grep -E '^[0-9]+$' | wc -l"
         )
         if result["exit_code"] == 0:
             count = int(result["stdout"].strip())
@@ -441,19 +443,11 @@ class TestCrossSandboxIsolation:
 
 
 class TestProcAbuse:
-    async def test_proc_is_read_only(self, client: httpx.AsyncClient, sandbox: dict):
-        result = await shell(
-            client, sandbox["id"], "echo x > /proc/sys/kernel/hostname 2>&1"
-        )
-        assert result["exit_code"] != 0
-
-    async def test_proc_self_shows_sandboxed_process(
-        self, client: httpx.AsyncClient, sandbox: dict
-    ):
-        result = await shell(
-            client, sandbox["id"], "cat /proc/self/status | grep -i '^pid:'"
-        )
-        assert result["exit_code"] == 0
+    async def test_proc_is_not_mounted(self, client: httpx.AsyncClient, sandbox: dict):
+        """With /proc removed from nsjail mounts, it should not be accessible."""
+        result = await shell(client, sandbox["id"], "ls /proc 2>&1")
+        # /proc should not exist or be empty
+        assert result["exit_code"] != 0 or "No such file" in result["stdout"]
 
     async def test_cannot_read_host_proc_1_cmdline(
         self, client: httpx.AsyncClient, sandbox: dict
@@ -462,15 +456,16 @@ class TestProcAbuse:
             client, sandbox["id"], "cat /proc/1/cmdline 2>/dev/null || echo BLOCKED"
         )
         stdout = result["stdout"]
+        # /proc is not mounted, so either cat fails (BLOCKED) or returns nothing
         assert "uvicorn" not in stdout
         assert "agentjail" not in stdout
 
-    async def test_proc_net_shows_isolated_interfaces(
+    async def test_proc_net_not_accessible(
         self, client: httpx.AsyncClient, sandbox: dict
     ):
         result = await shell(client, sandbox["id"], "cat /proc/net/dev 2>/dev/null")
-        if result["exit_code"] == 0:
-            assert "eth0" not in result["stdout"] or "lo" in result["stdout"]
+        # /proc not mounted — should fail or return empty
+        assert result["exit_code"] != 0 or result["stdout"].strip() == ""
 
 
 # ---------------------------------------------------------------------------

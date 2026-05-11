@@ -32,6 +32,7 @@ def container(image):
         .with_env_file(str(Path(SERVICE_DIR) / "default.env"))
         .with_kwargs(
             privileged=True,
+            user="root",
         )
         .waiting_for(
             LogMessageWaitStrategy("Application startup complete").with_startup_timeout(

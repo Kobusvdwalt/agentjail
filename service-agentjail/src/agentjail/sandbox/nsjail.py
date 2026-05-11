@@ -40,10 +40,15 @@ class NsjailRunner:
             await proc.wait()
             return ExecResult(exit_code=-1, stdout="", stderr="", timed_out=True)
 
+        # nsjail kills the sandboxed process with SIGKILL when
+        # time_limit is exceeded, which surfaces as returncode -9 (or 137).
+        nsjail_timed_out = proc.returncode in (-9, 137)
+
         return ExecResult(
             exit_code=proc.returncode or 0,
             stdout=stdout.decode(errors="replace"),
             stderr=stderr.decode(errors="replace"),
+            timed_out=nsjail_timed_out,
         )
 
     def _build_args(
@@ -82,9 +87,8 @@ class NsjailRunner:
 
         args.extend(["--bindmount", f"{sandbox.root_dir}/home:/home"])
 
-        args.extend(["--mount", "none:/tmp:tmpfs:size=67108864"])
         args.append("--disable_proc")
-        args.extend(["--bindmount_ro", "/proc"])
+        args.extend(["--mount", "none:/tmp:tmpfs:size=67108864"])
         args.extend(["--mount", "none:/dev:tmpfs"])
         for dev in ("/dev/null", "/dev/zero", "/dev/urandom", "/dev/random"):
             if Path(dev).exists():
