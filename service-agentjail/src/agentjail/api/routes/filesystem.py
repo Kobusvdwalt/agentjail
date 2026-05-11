@@ -13,11 +13,6 @@ def get_manager(request: Request) -> SandboxManager:
     return request.app.state.manager
 
 
-class WriteRequest(BaseModel):
-    path: str
-    content: str
-
-
 class MkdirRequest(BaseModel):
     path: str
 
@@ -49,28 +44,6 @@ async def _try(sandbox_id: str, coro):
             if isinstance(e, exc_type):
                 raise factory()
         raise
-
-
-@router.get("/sandbox/{sandbox_id}/fs/read")
-async def fs_read(
-    sandbox_id: str,
-    path: str,
-    manager: SandboxManager = Depends(get_manager),
-) -> dict:
-    content = await _try(sandbox_id, manager.sandbox_fs_read(sandbox_id, path))
-    return {"path": path, "content": content}
-
-
-@router.post("/sandbox/{sandbox_id}/fs/write")
-async def fs_write(
-    sandbox_id: str,
-    body: WriteRequest,
-    manager: SandboxManager = Depends(get_manager),
-) -> dict:
-    await _try(
-        sandbox_id, manager.sandbox_fs_write(sandbox_id, body.path, body.content)
-    )
-    return {"status": "written", "path": body.path}
 
 
 @router.post("/sandbox/{sandbox_id}/fs/upload")

@@ -19,11 +19,6 @@ def _resolve_safe(root_dir: Path, user_path: str) -> Path:
     return resolved
 
 
-def fs_read(root_dir: Path, path: str) -> str:
-    target = _resolve_safe(root_dir, path)
-    return target.read_text()
-
-
 def fs_resolve(root_dir: Path, path: str) -> Path:
     target = _resolve_safe(root_dir, path)
     if not target.is_file():

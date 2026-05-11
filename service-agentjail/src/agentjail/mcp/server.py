@@ -113,19 +113,6 @@ async def sandbox_shell(
 
 
 @mcp.tool
-async def sandbox_fs_read(sandbox_id: str, path: str) -> str:
-    """Read a file from the sandbox filesystem."""
-    return await _get_manager().sandbox_fs_read(sandbox_id, path)
-
-
-@mcp.tool
-async def sandbox_fs_write(sandbox_id: str, path: str, content: str) -> str:
-    """Write content to a file inside the sandbox."""
-    await _get_manager().sandbox_fs_write(sandbox_id, path, content)
-    return f'{{"status": "written", "path": "{path}"}}'
-
-
-@mcp.tool
 async def sandbox_fs_list(sandbox_id: str, path: str = "/") -> str:
     """List directory contents in the sandbox."""
     entries = await _get_manager().sandbox_fs_list(sandbox_id, path)

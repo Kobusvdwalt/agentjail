@@ -7,7 +7,6 @@ from agentjail.config import AgentjailSettings
 from agentjail.sandbox.filesystem import (
     fs_list,
     fs_mkdir,
-    fs_read,
     fs_remove,
     fs_resolve,
     fs_stat,
@@ -176,10 +175,6 @@ class SandboxManager:
         return await self.runner.run_command(
             sandbox, ["/bin/sh", "-c", command], timeout=timeout
         )
-
-    async def sandbox_fs_read(self, sandbox_id: str, path: str) -> str:
-        sandbox = self._get_sandbox(sandbox_id)
-        return fs_read(Path(sandbox.root_dir), path)
 
     async def sandbox_fs_download(self, sandbox_id: str, path: str) -> Path:
         sandbox = self._get_sandbox(sandbox_id)
