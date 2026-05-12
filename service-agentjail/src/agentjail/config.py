@@ -31,6 +31,10 @@ class AgentjailSettings(BaseSettings):
     default_memory_limit: int = 256
     default_pids_limit: int = 64
 
+    max_time_limit: int = 3600
+    max_memory_limit: int = 8192
+    max_pids_limit: int = 1024
+
     bind_mount_ro: list[str] = [
         "/usr",
         "/lib",

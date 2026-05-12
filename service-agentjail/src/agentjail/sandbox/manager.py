@@ -49,6 +49,24 @@ class SandboxManager:
         )
         settings.sandbox_base_dir.mkdir(parents=True, exist_ok=True)
 
+    def _validate_limits(
+        self,
+        time_limit: int | None,
+        memory_limit: int | None,
+        pids_limit: int | None,
+    ) -> tuple[int, int, int]:
+        tl = min(
+            time_limit or self.settings.default_time_limit, self.settings.max_time_limit
+        )
+        ml = min(
+            memory_limit or self.settings.default_memory_limit,
+            self.settings.max_memory_limit,
+        )
+        pl = min(
+            pids_limit or self.settings.default_pids_limit, self.settings.max_pids_limit
+        )
+        return tl, ml, pl
+
     async def sandbox_run(
         self,
         command: str,
@@ -61,10 +79,11 @@ class SandboxManager:
         root_dir.mkdir()
         self.runner.setup_sandbox(root_dir)
 
+        tl, ml, pl = self._validate_limits(time_limit, memory_limit, None)
         config = SandboxConfig(
-            time_limit=time_limit or self.settings.default_time_limit,
-            memory_limit=memory_limit or self.settings.default_memory_limit,
-            pids_limit=self.settings.default_pids_limit,
+            time_limit=tl,
+            memory_limit=ml,
+            pids_limit=pl,
             env=env or {},
         )
         sandbox = SandboxState(
@@ -100,11 +119,12 @@ class SandboxManager:
         self.runner.setup_sandbox(root_dir)
 
         now = datetime.now(timezone.utc)
+        tl, ml, pl = self._validate_limits(time_limit, memory_limit, pids_limit)
         config = SandboxConfig(
             name=name,
-            time_limit=time_limit or self.settings.default_time_limit,
-            memory_limit=memory_limit or self.settings.default_memory_limit,
-            pids_limit=pids_limit or self.settings.default_pids_limit,
+            time_limit=tl,
+            memory_limit=ml,
+            pids_limit=pl,
             env=env or {},
             cwd=cwd,
             network=network,
@@ -156,8 +176,11 @@ class SandboxManager:
         timeout: int | None = None,
     ) -> ExecResult:
         sandbox = self._get_sandbox(sandbox_id, require_running=True)
+        effective_timeout = (
+            min(timeout, self.settings.max_time_limit) if timeout else None
+        )
         return await self.runner.run_command(
-            sandbox, ["/bin/sh", "-c", command], timeout=timeout
+            sandbox, ["/bin/sh", "-c", command], timeout=effective_timeout
         )
 
     async def sandbox_download(self, sandbox_id: str, path: str) -> dict:
