@@ -6,7 +6,7 @@ Quick reference for agents modifying this codebase.
 
 | File | Purpose |
 |---|---|
-| `src/agentjail/config.py` | `AgentjailSettings` (pydantic-settings). All tunable values, env prefix `AGENTJAIL_`. Includes `runner` field and `bind_mount_ro` list. |
+| `src/agentjail/config.py` | `AgentjailSettings` (pydantic-settings). All tunable values, env prefix `AGENTJAIL_`. Includes `runner` field, `bind_mount_ro` list, and `resources_dir`. |
 | `src/agentjail/server.py` | `create_app()` — instantiates settings, manager, MCP, and FastAPI. Mounts MCP at `/mcp`. |
 | `src/agentjail/cli.py` | Typer CLI entry point. Calls `run_server()`. |
 | `src/agentjail/state.py` | `StateManager` — JSON state file with `filelock` + atomic writes via `os.replace()`. |
@@ -31,7 +31,7 @@ Quick reference for agents modifying this codebase.
 | `src/agentjail/api/routes/exec.py` | REST routes: shell (via /bin/sh -c). |
 | `src/agentjail/api/routes/filesystem.py` | REST routes: upload, download, sandbox download (prepare + fetch). |
 | `src/agentjail/api/routes/state.py` | REST route: raw state file dump (to be removed). |
-| `src/agentjail/mcp/server.py` | FastMCP tool definitions (6 tools). Uses global `_manager`. |
+| `src/agentjail/mcp/server.py` | FastMCP tool definitions (7 tools). Uses global `_manager`. |
 
 ## Infrastructure
 

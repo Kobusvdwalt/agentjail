@@ -16,6 +16,8 @@ class AgentjailSettings(BaseSettings):
     runner: Literal["nsjail", "chroot"] = "nsjail"
     nsjail_bin: str = "nsjail"
 
+    resources_dir: Path | None = Path("/var/lib/agentjail/resources")
+
     default_time_limit: int = 30
     default_memory_limit: int = 256
     default_pids_limit: int = 64

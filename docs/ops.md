@@ -23,6 +23,7 @@ Settings via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_STATE_FILE` | `/var/lib/agentjail/state.json` | Path to the JSON state file |
 | `AGENTJAIL_RUNNER` | `nsjail` | Sandbox runner: `nsjail` or `chroot` |
 | `AGENTJAIL_NSJAIL_BIN` | `nsjail` | Path to the nsjail binary |
+| `AGENTJAIL_RESOURCES_DIR` | `/var/lib/agentjail/resources` | Directory of read-only files injected into every sandbox at `/resources`. Set to empty or remove to disable. |
 | `AGENTJAIL_DEFAULT_TIME_LIMIT` | `30` | Default time limit (seconds) |
 | `AGENTJAIL_DEFAULT_MEMORY_LIMIT` | `256` | Default memory limit (MB) |
 | `AGENTJAIL_DEFAULT_PIDS_LIMIT` | `64` | Default PID limit |
@@ -42,6 +43,7 @@ security_opt:
   - seccomp=unconfined  # nsjail needs unrestricted seccomp
 volumes:
   - ./_volumes/agentjail:/var/lib/agentjail
+  - ./_volumes/resources:/var/lib/agentjail/resources:ro  # shared read-only resources
 ```
 
 These privileges are for the **container** — nsjail creates unprivileged sandboxes inside it.

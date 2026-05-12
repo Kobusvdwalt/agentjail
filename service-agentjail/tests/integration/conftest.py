@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import tempfile
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -25,11 +26,27 @@ def image():
 
 
 @pytest.fixture(scope="session")
-def container(image):
+def resources_dir():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        resources = Path(tmpdir)
+        (resources / "hello.txt").write_text("hello from resources")
+        (resources / "subdir").mkdir()
+        (resources / "subdir" / "nested.txt").write_text("nested file")
+        skill_dir = resources / "pdf-extractor"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: pdf-extractor\ndescription: Extract text from PDFs\n---\n# PDF Extractor\n"
+        )
+        yield str(resources)
+
+
+@pytest.fixture(scope="session")
+def container(image, resources_dir):
     with (
         DockerContainer(image)
         .with_exposed_ports(8000)
         .with_env_file(str(Path(SERVICE_DIR) / "default.env"))
+        .with_volume_mapping(resources_dir, "/var/lib/agentjail/resources", "ro")
         .with_kwargs(
             privileged=True,
             user="root",

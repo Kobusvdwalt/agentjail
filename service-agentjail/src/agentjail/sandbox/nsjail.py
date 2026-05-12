@@ -89,6 +89,9 @@ class NsjailRunner:
         args.extend(["--bindmount", f"{sandbox.root_dir}/home:/home"])
         args.extend(["--bindmount_ro", f"{sandbox.root_dir}/uploads:/uploads"])
 
+        if self.settings.resources_dir and self.settings.resources_dir.is_dir():
+            args.extend(["--bindmount_ro", f"{self.settings.resources_dir}:/resources"])
+
         args.append("--disable_proc")
         args.extend(["--mount", "none:/tmp:tmpfs:size=67108864"])
         args.extend(["--mount", "none:/dev:tmpfs"])

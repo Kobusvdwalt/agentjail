@@ -38,6 +38,10 @@ Each sandbox root directory (`<sandbox_base_dir>/<uuid>/`) has:
 
 System binaries (`/usr`, `/lib`, `/bin`, etc.) are provided via bind mounts (nsjail) or copies/symlinks (chroot).
 
+## Shared resources
+
+An optional host directory (`AGENTJAIL_RESOURCES_DIR`, default `/var/lib/agentjail/resources`) is bind-mounted read-only at `/resources` inside every sandbox. All sandboxes share the same files — no copies are made. Host changes are visible immediately. If the directory doesn't exist, the mount is skipped.
+
 ## JSON state file
 
 Configurable path via `AGENTJAIL_STATE_FILE`. Thread-safe via `filelock`, atomic writes via temp file + `os.replace()`.

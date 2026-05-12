@@ -12,6 +12,7 @@ Default runner. Requires elevated Docker privileges but provides the strongest i
 
 Each sandbox gets:
 - **Read-only** bind mounts of `/usr`, `/lib`, `/bin`, `/sbin`, `/etc` from the container (host binaries/libs)
+- **Read-only** bind mount of `/resources` (shared resources directory, if configured)
 - **Read-write** bind mount of `<root>/home` → `/home` inside the jail
 - **tmpfs** at `/tmp` (64MB, ephemeral per command)
 - **Read-only** bind mount of `/proc` (host's `/proc`, since mounting fresh procfs is blocked by Docker)

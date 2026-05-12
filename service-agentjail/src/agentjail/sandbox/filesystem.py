@@ -17,7 +17,14 @@ def _resolve_safe(root_dir: Path, user_path: str) -> Path:
 def fs_resolve(root_dir: Path, path: str) -> Path:
     target = _resolve_safe(root_dir, path)
     if not target.is_file():
-        raise FileNotFoundError(f"Not a file: {path}")
+        hint = ""
+        # Search for the filename under common locations to suggest a corrected path
+        name = Path(path).name
+        for candidate in root_dir.rglob(name):
+            if candidate.is_file():
+                hint = f" (did you mean /{candidate.relative_to(root_dir)}?)"
+                break
+        raise FileNotFoundError(f"Not a file: {path}{hint}")
     return target
 
 
