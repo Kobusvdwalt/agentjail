@@ -170,8 +170,10 @@ class SandboxManager:
         dest_name = f"{secrets.token_urlsafe(16)}{ext}"
         dest = downloads_dir / dest_name
         shutil.copy2(source, dest)
+        from urllib.parse import quote
+
         return {
-            "download_url": f"/api/v1/sandbox/{sandbox_id}/downloads/{dest_name}",
+            "download_url": f"/api/v1/sandbox/{sandbox_id}/downloads/{dest_name}?filename={quote(source.name)}",
             "filename": source.name,
             "size": dest.stat().st_size,
         }
