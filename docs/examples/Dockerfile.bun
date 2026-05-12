@@ -1,0 +1,17 @@
+FROM oven/bun:latest
+
+# Bring in agentjail (nsjail + MCP server — fully self-contained)
+COPY --from=agentjail:latest /opt/agentjail /opt/agentjail
+
+USER root
+
+# Service user
+RUN groupadd --system service-group \
+    && useradd --system --gid service-group --create-home --shell /bin/bash service
+RUN mkdir -p /var/lib/agentjail/sandboxes \
+    && chown -R service:service-group /var/lib/agentjail
+
+USER service
+
+ENTRYPOINT ["/opt/agentjail/.venv/bin/agentjail"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]

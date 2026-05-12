@@ -60,6 +60,25 @@ volumes:
   - ./_volumes/agentjail:/var/lib/agentjail
 ```
 
+## Base Image
+
+The production `Dockerfile` builds a self-contained `/opt/agentjail` tree (Python + venv + nsjail) that can be used two ways:
+
+### 1. Use the image directly
+```bash
+docker run -p 8000:8000 --cap-add SYS_ADMIN agentjail:latest
+```
+
+### 2. COPY --from into your own image
+```dockerfile
+FROM python:3.12-slim
+COPY --from=agentjail:latest /opt/agentjail /opt/agentjail
+```
+
+The tree is fully self-contained — no system Python, uv, pip, or extra apt packages needed. nsjail's runtime libraries are bundled with RPATH baked in, so no env vars are required.
+
+See `docs/examples/` for complete Dockerfiles (Python, Go, Bun).
+
 ## Development
 
 ```bash
@@ -78,6 +97,8 @@ docker compose up --build --watch
 - Python 3.14 execution inside sandboxes
 - Subprocess spawning inside sandboxes (Python subprocess module works)
 - Sandbox lifecycle: create → inspect → list → stop → remove
+- curl and HTTPS (with `network: true`) — `ca-certificates` and `curl` are installed in the container image
+- DNS resolution works when sandbox is created with `network: true`
 - exec with args (direct binary execution)
 - shell (via /bin/sh -c)
 - Filesystem API: mkdir, write, read, list, stat, remove

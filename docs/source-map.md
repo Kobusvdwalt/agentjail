@@ -38,6 +38,14 @@ Quick reference for agents modifying this codebase.
 | File | Purpose |
 |---|---|
 | `config/nsjail_default.cfg` | Reference/documentation nsjail config (NOT used at runtime — args built in Python). |
-| `Dockerfile` | Production image — multi-stage (nsjail build + runtime). Currently runs as root (to be fixed). |
+| `Dockerfile` | Production image — 3-stage build (nsjail + agentjail-builder + runtime). Produces self-contained `/opt/agentjail` tree that can be `COPY --from`'d into any image. Runs as non-root `service` user. |
 | `dev.dockerfile` | Dev image — uses `python:3.14-slim`, runs as `service` user, has `--reload`. |
 | `default.env` | Default environment variables for docker-compose. |
+
+## Example Dockerfiles
+
+| File | Purpose |
+|---|---|
+| `docs/examples/Dockerfile.python` | Example user image — adds Python 3.12 + packages for sandbox use. |
+| `docs/examples/Dockerfile.go` | Example user image — adds Go toolchain for sandbox use. |
+| `docs/examples/Dockerfile.bun` | Example user image — adds Bun runtime for sandbox use. |

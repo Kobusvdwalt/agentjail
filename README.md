@@ -188,6 +188,19 @@ security_opt:
 
 These privileges are for the **container** — nsjail then uses them to create unprivileged sandboxes inside the container. The sandboxed processes themselves have no special capabilities.
 
+## Extending the Base Image
+
+The production image ships a self-contained `/opt/agentjail` tree. Bring it into **any** image with a single `COPY --from` — like uv does:
+
+```dockerfile
+FROM python:3.12-slim
+
+# Bring in agentjail + nsjail (fully self-contained — no extra deps needed)
+COPY --from=agentjail:latest /opt/agentjail /opt/agentjail
+```
+
+Anything installed under `/usr`, `/lib`, `/bin`, etc. is automatically available inside sandboxes (these paths are bind-mounted read-only). See `docs/examples/` for more examples (Python, Go, Bun).
+
 ## Development
 
 ```bash
