@@ -23,6 +23,7 @@ Settings via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_STATE_FILE` | `/var/lib/agentjail/state.json` | Path to the JSON state file |
 | `AGENTJAIL_RUNNER` | `nsjail` | Sandbox runner: `nsjail` or `chroot` |
 | `AGENTJAIL_NSJAIL_BIN` | `nsjail` | Path to the nsjail binary |
+| `AGENTJAIL_RESOURCES_DIR` | `/var/lib/agentjail/resources` | Directory of read-only files injected into every sandbox at `/resources`. Set to empty or remove to disable. |
 | `AGENTJAIL_DEFAULT_TIME_LIMIT` | `30` | Default time limit (seconds) |
 | `AGENTJAIL_DEFAULT_MEMORY_LIMIT` | `256` | Default memory limit (MB) |
 | `AGENTJAIL_DEFAULT_PIDS_LIMIT` | `64` | Default PID limit |
@@ -42,6 +43,7 @@ security_opt:
   - seccomp=unconfined  # nsjail needs unrestricted seccomp
 volumes:
   - ./_volumes/agentjail:/var/lib/agentjail
+  - ./_volumes/resources:/var/lib/agentjail/resources:ro  # shared read-only resources
 ```
 
 These privileges are for the **container** — nsjail creates unprivileged sandboxes inside it.
@@ -57,6 +59,25 @@ environment:
 volumes:
   - ./_volumes/agentjail:/var/lib/agentjail
 ```
+
+## Base Image
+
+The production `Dockerfile` builds a self-contained `/opt/agentjail` tree (Python + venv + nsjail) that can be used two ways:
+
+### 1. Use the image directly
+```bash
+docker run -p 8000:8000 --cap-add SYS_ADMIN agentjail:latest
+```
+
+### 2. COPY --from into your own image
+```dockerfile
+FROM python:3.12-slim
+COPY --from=agentjail:latest /opt/agentjail /opt/agentjail
+```
+
+The tree is fully self-contained — no system Python, uv, pip, or extra apt packages needed. nsjail's runtime libraries are bundled with RPATH baked in, so no env vars are required.
+
+See `docs/examples/` for complete Dockerfiles (Python, Go, Bun).
 
 ## Development
 
@@ -76,6 +97,8 @@ docker compose up --build --watch
 - Python 3.14 execution inside sandboxes
 - Subprocess spawning inside sandboxes (Python subprocess module works)
 - Sandbox lifecycle: create → inspect → list → stop → remove
+- curl and HTTPS (with `network: true`) — `ca-certificates` and `curl` are installed in the container image
+- DNS resolution works when sandbox is created with `network: true`
 - exec with args (direct binary execution)
 - shell (via /bin/sh -c)
 - Filesystem API: mkdir, write, read, list, stat, remove

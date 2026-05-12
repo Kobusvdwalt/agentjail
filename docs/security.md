@@ -3,7 +3,7 @@
 ## What's solid
 
 - Path traversal protection in filesystem API uses `.resolve()` + `is_relative_to()`
-- UUID-generated sandbox IDs prevent path injection in directory creation
+- Sandbox IDs use `secrets.token_urlsafe(32)` (256-bit entropy) — unguessable even without authentication
 - Namespace isolation is comprehensive (PID, NET, MNT, UTS, IPC, USER)
 - Read-only system mounts prevent host binary tampering
 - `/dev` as tmpfs with only safe device nodes
@@ -26,7 +26,7 @@
 | SA-07 | MEDIUM | TOCTOU race in filesystem API (symlink swap between resolve and operation) | Future |
 | SA-08 | MEDIUM | `GET /api/v1/state` exposes internal host paths | Plan 06 |
 | SA-09 | MEDIUM | No sandbox count or disk usage limits | Plan 05 |
-| SA-10 | LOW | Sandbox IDs are UUID4 (122-bit entropy) — upgrade to 256-bit | Plan 01 |
+| SA-10 | LOW | ~~Sandbox IDs are UUID4 (122-bit entropy) — upgrade to 256-bit~~ **FIXED** | Plan 01 |
 | SA-11 | LOW | `/sys/fs/cgroup` bind-mounted read-only, exposes cgroup topology (nsjail only) | Plan 03 |
 
 ## Runner-specific security notes

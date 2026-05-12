@@ -48,6 +48,7 @@ AI agents that can run code are powerful, but letting them execute arbitrary com
 │  │  • IPC/UTS namespace               │  │
 │  │  • Resource limits (CPU/mem/pids)  │  │
 │  │  • Read-only: /usr /lib /bin /etc  │  │
+│  │  • Read-only: /resources (shared)   │  │
 │  │  • Read-write: /home (sandbox dir) │  │
 │  │  • Ephemeral: /tmp /dev            │  │
 │  └────────────────────────────────────┘  │
@@ -68,7 +69,7 @@ The server starts on `http://localhost:8000`.
 
 ### MCP (for Claude / Cursor)
 
-Point your MCP client at `http://localhost:8000/mcp`. The server exposes 6 tools:
+Point your MCP client at `http://localhost:8000/mcp`. The server exposes 7 tools:
 
 | Tool | Description |
 |---|---|
@@ -78,6 +79,7 @@ Point your MCP client at `http://localhost:8000/mcp`. The server exposes 6 tools
 | `sandbox_remove` | Remove a sandbox and its files |
 | `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
 | `sandbox_download` | Prepare a file for download (returns a URL to fetch it) |
+| `sandbox_resources` | List shared resource files and discovered Agent Skills |
 
 ### REST API
 
@@ -167,6 +169,7 @@ Settings are configurable via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_SANDBOX_BASE_DIR` | `/var/lib/agentjail/sandboxes` | Where sandbox directories are stored |
 | `AGENTJAIL_STATE_FILE` | `/var/lib/agentjail/state.json` | Path to the JSON state file |
 | `AGENTJAIL_NSJAIL_BIN` | `nsjail` | Path to the nsjail binary |
+| `AGENTJAIL_RESOURCES_DIR` | `/var/lib/agentjail/resources` | Read-only files injected into every sandbox at `/resources` |
 | `AGENTJAIL_DEFAULT_TIME_LIMIT` | `30` | Default time limit (seconds) |
 | `AGENTJAIL_DEFAULT_MEMORY_LIMIT` | `256` | Default memory limit (MB) |
 | `AGENTJAIL_DEFAULT_PIDS_LIMIT` | `64` | Default PID limit |
@@ -184,6 +187,19 @@ security_opt:
 ```
 
 These privileges are for the **container** — nsjail then uses them to create unprivileged sandboxes inside the container. The sandboxed processes themselves have no special capabilities.
+
+## Extending the Base Image
+
+The production image ships a self-contained `/opt/agentjail` tree. Bring it into **any** image with a single `COPY --from` — like uv does:
+
+```dockerfile
+FROM python:3.12-slim
+
+# Bring in agentjail + nsjail (fully self-contained — no extra deps needed)
+COPY --from=agentjail:latest /opt/agentjail /opt/agentjail
+```
+
+Anything installed under `/usr`, `/lib`, `/bin`, etc. is automatically available inside sandboxes (these paths are bind-mounted read-only). See `docs/examples/` for more examples (Python, Go, Bun).
 
 ## Development
 

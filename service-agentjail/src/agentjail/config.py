@@ -1,7 +1,16 @@
 from pathlib import Path
+from shutil import which
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _find_nsjail() -> str:
+    """Bundled path first, then fall back to PATH lookup."""
+    bundled = Path("/opt/agentjail/bin/nsjail")
+    if bundled.is_file():
+        return str(bundled)
+    return which("nsjail") or "nsjail"
 
 
 class AgentjailSettings(BaseSettings):
@@ -14,7 +23,9 @@ class AgentjailSettings(BaseSettings):
     state_file: Path = Path("/var/lib/agentjail/state.json")
 
     runner: Literal["nsjail", "chroot"] = "nsjail"
-    nsjail_bin: str = "nsjail"
+    nsjail_bin: str = _find_nsjail()
+
+    resources_dir: Path | None = Path("/var/lib/agentjail/resources")
 
     default_time_limit: int = 30
     default_memory_limit: int = 256

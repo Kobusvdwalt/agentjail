@@ -1,7 +1,9 @@
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from uuid import uuid4
+import secrets
+
+import yaml
 
 from agentjail.sandbox.filesystem import _resolve_safe
 
@@ -54,7 +56,7 @@ class SandboxManager:
         memory_limit: int | None = None,
         env: dict[str, str] | None = None,
     ) -> tuple[ExecResult, str]:
-        sandbox_id = str(uuid4())
+        sandbox_id = secrets.token_urlsafe(32)
         root_dir = self.settings.sandbox_base_dir / sandbox_id
         root_dir.mkdir()
         self.runner.setup_sandbox(root_dir)
@@ -92,7 +94,7 @@ class SandboxManager:
         cwd: str = "/home",
         network: bool = False,
     ) -> SandboxState:
-        sandbox_id = str(uuid4())
+        sandbox_id = secrets.token_urlsafe(32)
         root_dir = self.settings.sandbox_base_dir / sandbox_id
         root_dir.mkdir()
         self.runner.setup_sandbox(root_dir)
@@ -165,7 +167,7 @@ class SandboxManager:
         downloads_dir = root_dir / "downloads"
         downloads_dir.mkdir(exist_ok=True)
         ext = source.suffix
-        dest_name = f"{uuid4()}{ext}"
+        dest_name = f"{secrets.token_urlsafe(16)}{ext}"
         dest = downloads_dir / dest_name
         shutil.copy2(source, dest)
         return {
@@ -203,3 +205,63 @@ class SandboxManager:
         if require_running and sandbox.status != "running":
             raise SandboxNotRunning(sandbox_id)
         return sandbox
+
+    def list_resources(self, max_depth: int = 2) -> dict:
+        """List files in the resources directory and parse any SKILL.md files."""
+        resources_dir = self.settings.resources_dir
+        if not resources_dir or not resources_dir.is_dir():
+            return {"available": False, "files": [], "skills": []}
+
+        files: list[str] = []
+        skills: list[dict[str, str]] = []
+
+        base = resources_dir
+
+        for item in sorted(base.rglob("*")):
+            rel = item.relative_to(base)
+            # Enforce max depth
+            if len(rel.parts) > max_depth:
+                continue
+
+            entry = str(rel)
+            if item.is_dir():
+                entry += "/"
+            files.append(entry)
+
+            if item.is_file() and item.name == "SKILL.md":
+                skill = _parse_skill_frontmatter(item)
+                if skill:
+                    skill["location"] = f"/resources/{rel}"
+                    skills.append(skill)
+
+        return {"available": True, "files": files, "skills": skills}
+
+
+def _parse_skill_frontmatter(path: Path) -> dict[str, str] | None:
+    """Parse YAML frontmatter from a SKILL.md file, returning name and description."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+    if not text.startswith("---"):
+        return None
+
+    end = text.find("---", 3)
+    if end == -1:
+        return None
+
+    try:
+        front = yaml.safe_load(text[3:end])
+    except yaml.YAMLError:
+        return None
+
+    if not isinstance(front, dict):
+        return None
+
+    name = front.get("name")
+    description = front.get("description")
+    if not name or not description:
+        return None
+
+    return {"name": str(name), "description": str(description)}

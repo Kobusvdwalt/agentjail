@@ -75,8 +75,27 @@ async def sandbox_shell(
 
 @mcp.tool
 async def sandbox_download(sandbox_id: str, path: str) -> str:
-    """Prepare a file for download from the sandbox. Copies the file to a downloads folder with a unique name and returns a URL where it can be fetched."""
+    """Prepare a file for download from the sandbox. Copies the file to a downloads folder with a unique name and returns a URL where it can be fetched.
+
+    path: Absolute path inside the sandbox (e.g. /home/output.csv). The default working directory is /home, so files created by commands will typically be under /home/.
+    """
     import json
 
     result = await _get_manager().sandbox_download(sandbox_id, path)
+    return json.dumps(result)
+
+
+@mcp.tool
+async def sandbox_resources(max_depth: int = 2) -> str:
+    """List shared read-only resource files available to all sandboxes at /resources.
+
+    Returns a file listing (up to max_depth levels deep) and any discovered Agent Skills
+    with their name, description, and location. To read a skill's full instructions,
+    use sandbox_shell to cat the SKILL.md at the returned location.
+
+    max_depth: Maximum directory depth to list (default 2).
+    """
+    import json
+
+    result = _get_manager().list_resources(max_depth=max_depth)
     return json.dumps(result)

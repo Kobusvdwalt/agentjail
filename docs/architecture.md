@@ -38,6 +38,30 @@ Each sandbox root directory (`<sandbox_base_dir>/<uuid>/`) has:
 
 System binaries (`/usr`, `/lib`, `/bin`, etc.) are provided via bind mounts (nsjail) or copies/symlinks (chroot).
 
+## Shared resources
+
+An optional host directory (`AGENTJAIL_RESOURCES_DIR`, default `/var/lib/agentjail/resources`) is bind-mounted read-only at `/resources` inside every sandbox. All sandboxes share the same files — no copies are made. Host changes are visible immediately. If the directory doesn't exist, the mount is skipped.
+
+## Base image pattern
+
+The production Dockerfile builds a **self-contained agentjail tree** under `/opt/agentjail` containing the nsjail binary, a uv-managed Python interpreter, and the agentjail venv. This entire tree can be copied into any Docker image with a single `COPY --from`:
+
+```dockerfile
+FROM python:3.12-slim
+COPY --from=agentjail:latest /opt/agentjail /opt/agentjail
+```
+
+The `/opt/agentjail` tree contains:
+- `.venv/` — Python venv with agentjail installed (entry point: `agentjail`)
+- `python/` — uv-managed Python interpreter (the venv links to this)
+- `bin/nsjail` — nsjail binary
+- `lib/` — nsjail's runtime shared libraries (libprotobuf, libnl), found via RPATH baked into the binary
+- `config/` — reference nsjail config
+
+The target image needs no extra dependencies or env vars — everything is bundled. Just `COPY --from` and go.
+
+See `docs/examples/` for sample Dockerfiles adding Python, Go, and Bun.
+
 ## JSON state file
 
 Configurable path via `AGENTJAIL_STATE_FILE`. Thread-safe via `filelock`, atomic writes via temp file + `os.replace()`.
