@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import os
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -29,6 +30,9 @@ def image():
 def resources_dir():
     with tempfile.TemporaryDirectory() as tmpdir:
         resources = Path(tmpdir)
+        # Ensure world-readable so nsjail's sandboxed uid 1000 can access
+        # the bind-mounted files (temp dirs default to mode 0700 on Linux).
+        os.chmod(tmpdir, 0o755)
         (resources / "hello.txt").write_text("hello from resources")
         (resources / "subdir").mkdir()
         (resources / "subdir" / "nested.txt").write_text("nested file")
