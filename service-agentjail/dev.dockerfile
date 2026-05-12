@@ -15,10 +15,14 @@ ENV UV_PYTHON_DOWNLOADS=0 UV_COMPILE_BYTECODE=0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf32t64 libnl-route-3-200 libcap2-bin \
+    ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=nsjail-builder /nsjail/nsjail /usr/local/bin/nsjail
-RUN setcap cap_sys_admin,cap_sys_ptrace,cap_sys_chroot,cap_dac_override,cap_setuid,cap_setgid,cap_net_admin,cap_mknod+eip /usr/local/bin/nsjail
+# Note: Do NOT setcap on the nsjail binary here. The dev docker-compose grants
+# CAP_SYS_ADMIN via cap_add, and file capabilities conflict with container
+# capabilities on some kernels, causing "Operation not permitted" on exec.
+# Production Dockerfile should use setcap if not using cap_add.
 
 RUN pip install uv
 

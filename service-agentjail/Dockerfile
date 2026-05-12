@@ -13,7 +13,7 @@ FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libc6 libstdc++6 libprotobuf32t64 libnl-route-3-200 \
-    python3 \
+    python3 ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=nsjail-builder /nsjail/nsjail /usr/local/bin/nsjail

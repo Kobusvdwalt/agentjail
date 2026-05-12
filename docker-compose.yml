@@ -9,6 +9,7 @@ services:
       - "8000:8000"
     volumes:
       - ./_volumes/agentjail:/var/lib/agentjail
+      - ./_volumes/resources:/var/lib/agentjail/resources:ro
     develop:
       watch:
         - action: sync
@@ -22,27 +23,27 @@ services:
       - apparmor=unconfined
       - seccomp=unconfined
 
-  agentjail-chroot:
-    build:
-      context: ./service-agentjail
-      dockerfile: dev.dockerfile
-    env_file:
-      - ./service-agentjail/default.env
-    environment:
-      - AGENTJAIL_PORT=8001
-      - AGENTJAIL_RUNNER=chroot
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./_volumes/agentjail-chroot:/var/lib/agentjail
-    develop:
-      watch:
-        - action: sync
-          path: ./service-agentjail/src
-          target: /home/service/app/src
-        - action: rebuild
-          path: ./service-agentjail/pyproject.toml
-    security_opt:
-      - apparmor=unconfined
-      - seccomp=unconfined
+  # agentjail-chroot:
+  #   build:
+  #     context: ./service-agentjail
+  #     dockerfile: dev.dockerfile
+  #   env_file:
+  #     - ./service-agentjail/default.env
+  #   environment:
+  #     - AGENTJAIL_PORT=8001
+  #     - AGENTJAIL_RUNNER=chroot
+  #   ports:
+  #     - "8001:8001"
+  #   volumes:
+  #     - ./_volumes/agentjail-chroot:/var/lib/agentjail
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./service-agentjail/src
+  #         target: /home/service/app/src
+  #       - action: rebuild
+  #         path: ./service-agentjail/pyproject.toml
+  #   security_opt:
+  #     - apparmor=unconfined
+  #     - seccomp=unconfined
 
