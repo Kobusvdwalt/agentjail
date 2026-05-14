@@ -44,3 +44,6 @@ class AgentjailSettings(BaseSettings):
         "/etc",
         "/sys/fs/cgroup",
     ]
+
+    mcp_tools: list[str] | None = None
+    """Whitelist of MCP tool names to expose. None means all tools are enabled."""

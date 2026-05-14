@@ -1,15 +1,39 @@
 from fastmcp import FastMCP
 
+from agentjail.config import AgentjailSettings
 from agentjail.sandbox.manager import SandboxManager
 
 mcp = FastMCP("agentjail")
 
 _manager: SandboxManager | None = None
 
+# All tool names registered by this module (order matches decorators below).
+ALL_TOOLS = [
+    "sandbox_create",
+    "sandbox_inspect",
+    "sandbox_stop",
+    "sandbox_remove",
+    "sandbox_shell",
+    "sandbox_download",
+    "sandbox_resources",
+]
 
-def init_mcp(manager: SandboxManager) -> FastMCP:
+
+def init_mcp(
+    manager: SandboxManager, settings: AgentjailSettings | None = None
+) -> FastMCP:
     global _manager
     _manager = manager
+
+    if settings and settings.mcp_tools is not None:
+        allowed = set(settings.mcp_tools)
+        for tool_name in ALL_TOOLS:
+            if tool_name not in allowed:
+                try:
+                    mcp.remove_tool(tool_name)
+                except Exception:
+                    pass  # tool may already be absent
+
     return mcp
 
 
