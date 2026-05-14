@@ -220,6 +220,22 @@ class SandboxManager:
         sandbox = self._get_sandbox(sandbox_id)
         fs_write(Path(sandbox.root_dir), path, content)
 
+    async def sandbox_read_media(self, sandbox_id: str, path: str) -> tuple[bytes, str]:
+        """Read a media file from the sandbox and return its raw bytes and MIME type."""
+        import mimetypes
+
+        sandbox = self._get_sandbox(sandbox_id)
+        resolved = fs_resolve(Path(sandbox.root_dir), path)
+        mime_type, _ = mimetypes.guess_type(resolved.name)
+        if mime_type is None:
+            raise ValueError(f"Cannot determine MIME type for: {path}")
+        if not (mime_type.startswith("image/") or mime_type.startswith("audio/")):
+            raise ValueError(
+                f"Unsupported media type '{mime_type}' for: {path}. "
+                "Only image/* and audio/* are supported."
+            )
+        return resolved.read_bytes(), mime_type
+
     def _get_sandbox(
         self, sandbox_id: str, require_running: bool = False
     ) -> SandboxState:
