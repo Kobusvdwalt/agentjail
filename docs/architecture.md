@@ -8,10 +8,10 @@ Sandboxed command execution service for AI agents. Provides isolated environment
 
 FastMCP is mounted as an ASGI sub-app inside FastAPI. One uvicorn process serves both MCP (`/mcp`) and REST API (`/api/v1/...`) on port 8000.
 
-## Two sandbox modes
+## Sandbox modes
 
-1. **Ephemeral** (`POST /api/v1/sandbox/run`) — creates a temp directory, runs a single command, deletes the directory. No state persisted.
-2. **Persistent** (`POST /api/v1/sandbox` → exec/shell) — creates a sandbox with a UUID, stores state in a JSON file. The sandbox's writable directory persists across exec calls until explicitly removed.
+1. **Persistent API mode** (`POST /api/v1/sandbox` → shell/filesystem routes) — creates a sandbox with a UUID, stores state in a JSON file. The sandbox's writable directory persists across calls until explicitly removed.
+2. **Ephemeral manager mode** (`SandboxManager.sandbox_run()`) — creates a temp directory, runs a single command, and deletes the directory. This mode exists in the manager layer but is not exposed as a REST endpoint in the current API surface.
 
 ## No long-running daemon
 

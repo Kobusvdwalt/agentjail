@@ -27,11 +27,11 @@ Quick reference for agents modifying this codebase.
 | File | Purpose |
 |---|---|
 | `src/agentjail/api/app.py` | FastAPI app factory. Registers route modules. |
-| `src/agentjail/api/routes/sandbox.py` | REST routes: create, list, inspect, stop, remove, ephemeral run. |
+| `src/agentjail/api/routes/sandbox.py` | REST routes: create, inspect, stop, remove. |
 | `src/agentjail/api/routes/exec.py` | REST routes: shell (via /bin/sh -c). |
-| `src/agentjail/api/routes/filesystem.py` | REST routes: upload, download, sandbox download (prepare + fetch). |
+| `src/agentjail/api/routes/filesystem.py` | REST routes: upload, direct download, host-file prepare + hosted fetch. |
 | `src/agentjail/api/routes/state.py` | REST route: raw state file dump (to be removed). |
-| `src/agentjail/mcp/server.py` | FastMCP tool definitions (7 tools). Uses global `_manager`. |
+| `src/agentjail/mcp/server.py` | FastMCP tool definitions (8 tools). Uses global `_manager`. |
 
 ## Infrastructure
 

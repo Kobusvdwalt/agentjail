@@ -10,8 +10,8 @@ DELETE /api/v1/sandbox/{id}         — remove sandbox (force=true to remove run
 POST   /api/v1/sandbox/{id}/shell  — run shell command (via /bin/sh -c)
 POST   /api/v1/sandbox/{id}/fs/upload   — upload a file (multipart)
 GET    /api/v1/sandbox/{id}/fs/download?path= — download a file directly
-POST   /api/v1/sandbox/{id}/download?path=    — prepare file for download (returns URL)
-GET    /api/v1/sandbox/{id}/downloads/{name}  — fetch a prepared download
+POST   /api/v1/sandbox/{id}/host?path=        — prepare file for host retrieval (returns URL)
+GET    /api/v1/sandbox/{id}/hosted/{name}     — fetch a prepared hosted file
 GET    /api/v1/state                — raw state file
 ```
 
@@ -24,7 +24,7 @@ GET    /api/v1/state                — raw state file
 | `sandbox_stop` | Stop a sandbox |
 | `sandbox_remove` | Remove a sandbox and its files |
 | `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
-| `sandbox_download` | Prepare a file for download — `path` is an absolute path inside the sandbox (e.g. `/home/output.csv`). Copies to a downloads folder with a UUID name, returns a URL |
+| `sandbox_host_file` | Prepare a file for host retrieval — `path` is an absolute path inside the sandbox (e.g. `/home/output.csv`). Copies to a hosted folder with a UUID name, returns a URL |
 | `sandbox_read_media` | Read an image or audio file and return MCP-compliant `ImageContent` (for `image/*`) or `AudioContent` (for `audio/*`) with base64-encoded data — lets agents understand visual/audio semantics directly |
 | `sandbox_resources` | List shared read-only resource files and discovered Agent Skills (parses `SKILL.md` frontmatter). `max_depth` controls directory scan depth (default 2) |
 
@@ -33,8 +33,8 @@ GET    /api/v1/state                — raw state file
 Set `AGENTJAIL_MCP_TOOLS` to a JSON list of tool names to expose only a subset of tools. When unset, all tools are enabled.
 
 ```bash
-# Only expose shell and download — agent cannot create/remove sandboxes
-AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_download", "sandbox_resources"]'
+# Only expose shell and hosted-file prep — agent cannot create/remove sandboxes
+AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_host_file", "sandbox_resources"]'
 ```
 
 ## Sandbox Options

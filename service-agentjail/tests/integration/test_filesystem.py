@@ -1,6 +1,6 @@
 import httpx
 
-from helpers import download, shell, upload
+from helpers import download, fetch_hosted, sandbox_host_file, shell, upload
 
 
 class TestUpload:
@@ -96,6 +96,35 @@ class TestDownload:
         resp = await download(client, sandbox["id"], "/home/output.txt")
         assert resp.status_code == 200
         assert resp.content == b"hello"
+
+
+class TestHostFile:
+    async def test_host_file_roundtrip(self, client: httpx.AsyncClient, sandbox: dict):
+        content = b"host me"
+        await upload(client, sandbox["id"], "artifact.txt", content)
+
+        host_resp = await sandbox_host_file(
+            client, sandbox["id"], "/uploads/artifact.txt"
+        )
+        assert host_resp.status_code == 200
+        data = host_resp.json()
+        assert data["download_url"].startswith(
+            f"/api/v1/sandbox/{sandbox['id']}/hosted/"
+        )
+
+        hosted_name = data["download_url"].rsplit("/", 1)[-1]
+        fetch_resp = await fetch_hosted(client, sandbox["id"], hosted_name)
+        assert fetch_resp.status_code == 200
+        assert fetch_resp.content == content
+
+    async def test_legacy_download_route_removed(
+        self, client: httpx.AsyncClient, sandbox: dict
+    ):
+        resp = await client.post(
+            f"/sandbox/{sandbox['id']}/download",
+            params={"path": "/uploads/artifact.txt"},
+        )
+        assert resp.status_code == 404
 
 
 class TestNonexistentSandbox:

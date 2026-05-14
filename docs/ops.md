@@ -27,7 +27,7 @@ Settings via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_DEFAULT_TIME_LIMIT` | `30` | Default time limit (seconds) |
 | `AGENTJAIL_DEFAULT_MEMORY_LIMIT` | `256` | Default memory limit (MB) |
 | `AGENTJAIL_DEFAULT_PIDS_LIMIT` | `64` | Default PID limit |
-| `AGENTJAIL_MCP_TOOLS` | *(all)* | JSON list of MCP tool names to expose (e.g. `'["sandbox_shell","sandbox_download"]'`). When unset, all tools are enabled. |
+| `AGENTJAIL_MCP_TOOLS` | *(all)* | JSON list of MCP tool names to expose (e.g. `'["sandbox_shell","sandbox_host_file"]'`). When unset, all tools are enabled. |
 
 ## Docker setup
 

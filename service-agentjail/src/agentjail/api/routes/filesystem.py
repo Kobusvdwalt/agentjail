@@ -62,22 +62,22 @@ async def fs_download(
     return FileResponse(resolved, filename=resolved.name)
 
 
-@router.post("/sandbox/{sandbox_id}/download")
-async def sandbox_download(
+@router.post("/sandbox/{sandbox_id}/host")
+async def sandbox_host_file(
     sandbox_id: str,
     path: str,
     manager: SandboxManager = Depends(get_manager),
 ) -> dict:
-    return await _try(sandbox_id, manager.sandbox_download(sandbox_id, path))
+    return await _try(sandbox_id, manager.sandbox_host_file(sandbox_id, path))
 
 
-@router.get("/sandbox/{sandbox_id}/downloads/{filename}")
-async def sandbox_download_file(
+@router.get("/sandbox/{sandbox_id}/hosted/{filename}")
+async def sandbox_hosted_file(
     sandbox_id: str,
     filename: str,
     manager: SandboxManager = Depends(get_manager),
 ) -> FileResponse:
     resolved = await _try(
-        sandbox_id, manager.sandbox_download_resolve(sandbox_id, filename)
+        sandbox_id, manager.sandbox_hosted_resolve(sandbox_id, filename)
     )
     return FileResponse(resolved, filename=resolved.name)

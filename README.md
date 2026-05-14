@@ -69,7 +69,7 @@ The server starts on `http://localhost:8000`.
 
 ### MCP (for Claude / Cursor)
 
-Point your MCP client at `http://localhost:8000/mcp`. The server exposes 7 tools:
+Point your MCP client at `http://localhost:8000/mcp`. The server exposes 8 tools:
 
 | Tool | Description |
 |---|---|
@@ -78,24 +78,20 @@ Point your MCP client at `http://localhost:8000/mcp`. The server exposes 7 tools
 | `sandbox_stop` | Stop a sandbox |
 | `sandbox_remove` | Remove a sandbox and its files |
 | `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
-| `sandbox_download` | Prepare a file for download (returns a URL to fetch it) |
+| `sandbox_host_file` | Prepare a file for host retrieval (returns a URL to fetch it) |
+| `sandbox_read_media` | Read image/audio files and return MCP media content |
 | `sandbox_resources` | List shared resource files and discovered Agent Skills |
 
 To expose only a subset of tools, set `AGENTJAIL_MCP_TOOLS` to a JSON list:
 
 ```bash
 # Agent can only run commands and list resources — no sandbox lifecycle control
-AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_download", "sandbox_resources"]'
+AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_host_file", "sandbox_resources"]'
 ```
 
 ### REST API
 
 ```bash
-# Ephemeral — run a command and throw away the sandbox
-curl -X POST http://localhost:8000/api/v1/sandbox/run \
-  -H 'Content-Type: application/json' \
-  -d '{"command": "echo hello world"}'
-
 # Persistent — create a sandbox, run commands, inspect files
 SANDBOX_ID=$(curl -s -X POST http://localhost:8000/api/v1/sandbox \
   -H 'Content-Type: application/json' \
@@ -113,10 +109,10 @@ curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/fs/upload \
 # Execute it
 curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/shell \
   -H 'Content-Type: application/json' \
-  -d '{"command": "python3 /home/uploads/hello.py"}'
+  -d '{"command": "python3 /uploads/hello.py"}'
 
-# Prepare a file for download (returns a URL)
-curl -X POST "http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/download?path=/home/uploads/hello.py"
+# Prepare a file for host retrieval (returns a URL)
+curl -X POST "http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/host?path=/uploads/hello.py"
 
 # Clean up
 curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/stop
@@ -133,8 +129,8 @@ DELETE /api/v1/sandbox/{id}          — remove sandbox (force=true to remove ru
 POST   /api/v1/sandbox/{id}/shell   — run shell command (via /bin/sh -c)
 POST   /api/v1/sandbox/{id}/fs/upload   — upload a file (multipart)
 GET    /api/v1/sandbox/{id}/fs/download?path= — download a file directly
-POST   /api/v1/sandbox/{id}/download?path=    — prepare file for download (returns URL)
-GET    /api/v1/sandbox/{id}/downloads/{name}  — fetch a prepared download
+POST   /api/v1/sandbox/{id}/host?path=        — prepare file for host retrieval (returns URL)
+GET    /api/v1/sandbox/{id}/hosted/{name}     — fetch a prepared hosted file
 GET    /api/v1/state                 — raw state file
 ```
 
