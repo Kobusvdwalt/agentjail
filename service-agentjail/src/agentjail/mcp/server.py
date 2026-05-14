@@ -1,4 +1,7 @@
+import base64
+
 from fastmcp import FastMCP
+from mcp.types import AudioContent, ImageContent
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.manager import SandboxManager
@@ -15,6 +18,7 @@ ALL_TOOLS = [
     "sandbox_remove",
     "sandbox_shell",
     "sandbox_download",
+    "sandbox_read_media",
     "sandbox_resources",
 ]
 
@@ -107,6 +111,22 @@ async def sandbox_download(sandbox_id: str, path: str) -> str:
 
     result = await _get_manager().sandbox_download(sandbox_id, path)
     return json.dumps(result)
+
+
+@mcp.tool()
+async def sandbox_read_media(sandbox_id: str, path: str) -> ImageContent | AudioContent:
+    """Read an image or audio file from the sandbox and return it as base64-encoded media content.
+
+    Returns MCP-compliant ImageContent (for image/*) or AudioContent (for audio/*) so
+    agents can directly understand the visual or audio semantics of the file.
+
+    path: Absolute path inside the sandbox (e.g. /home/photo.png).
+    """
+    data, mime_type = await _get_manager().sandbox_read_media(sandbox_id, path)
+    encoded = base64.b64encode(data).decode("ascii")
+    if mime_type.startswith("image/"):
+        return ImageContent(type="image", data=encoded, mimeType=mime_type)
+    return AudioContent(type="audio", data=encoded, mimeType=mime_type)
 
 
 @mcp.tool(output_schema=None)

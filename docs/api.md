@@ -15,7 +15,7 @@ GET    /api/v1/sandbox/{id}/downloads/{name}  — fetch a prepared download
 GET    /api/v1/state                — raw state file
 ```
 
-## MCP Tools (7)
+## MCP Tools (8)
 
 | Tool | Description |
 |---|---|
@@ -25,6 +25,7 @@ GET    /api/v1/state                — raw state file
 | `sandbox_remove` | Remove a sandbox and its files |
 | `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
 | `sandbox_download` | Prepare a file for download — `path` is an absolute path inside the sandbox (e.g. `/home/output.csv`). Copies to a downloads folder with a UUID name, returns a URL |
+| `sandbox_read_media` | Read an image or audio file and return MCP-compliant `ImageContent` (for `image/*`) or `AudioContent` (for `audio/*`) with base64-encoded data — lets agents understand visual/audio semantics directly |
 | `sandbox_resources` | List shared read-only resource files and discovered Agent Skills (parses `SKILL.md` frontmatter). `max_depth` controls directory scan depth (default 2) |
 
 ### Tool Filtering
