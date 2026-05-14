@@ -81,6 +81,13 @@ Point your MCP client at `http://localhost:8000/mcp`. The server exposes 7 tools
 | `sandbox_download` | Prepare a file for download (returns a URL to fetch it) |
 | `sandbox_resources` | List shared resource files and discovered Agent Skills |
 
+To expose only a subset of tools, set `AGENTJAIL_MCP_TOOLS` to a JSON list:
+
+```bash
+# Agent can only run commands and list resources — no sandbox lifecycle control
+AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_download", "sandbox_resources"]'
+```
+
 ### REST API
 
 ```bash

@@ -27,6 +27,15 @@ GET    /api/v1/state                — raw state file
 | `sandbox_download` | Prepare a file for download — `path` is an absolute path inside the sandbox (e.g. `/home/output.csv`). Copies to a downloads folder with a UUID name, returns a URL |
 | `sandbox_resources` | List shared read-only resource files and discovered Agent Skills (parses `SKILL.md` frontmatter). `max_depth` controls directory scan depth (default 2) |
 
+### Tool Filtering
+
+Set `AGENTJAIL_MCP_TOOLS` to a JSON list of tool names to expose only a subset of tools. When unset, all tools are enabled.
+
+```bash
+# Only expose shell and download — agent cannot create/remove sandboxes
+AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_download", "sandbox_resources"]'
+```
+
 ## Sandbox Options
 
 | Option | Default | Description |

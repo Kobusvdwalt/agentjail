@@ -11,7 +11,7 @@ def create_app() -> FastAPI:
     settings = AgentjailSettings()
     manager = SandboxManager(settings)
 
-    mcp_server = init_mcp(manager)
+    mcp_server = init_mcp(manager, settings)
     mcp_app = mcp_server.http_app(path="/")
 
     api_app = create_api(manager, lifespan=mcp_app.lifespan)
