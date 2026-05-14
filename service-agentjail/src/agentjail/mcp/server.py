@@ -18,7 +18,7 @@ def _get_manager() -> SandboxManager:
     return _manager
 
 
-@mcp.tool
+@mcp.tool(output_schema=None)
 async def sandbox_create(
     name: str | None = None,
     time_limit: int = 30,
@@ -41,28 +41,28 @@ async def sandbox_create(
     return sandbox.model_dump_json()
 
 
-@mcp.tool
+@mcp.tool(output_schema=None)
 async def sandbox_inspect(sandbox_id: str) -> str:
     """Get detailed sandbox information including full configuration."""
     sandbox = await _get_manager().sandbox_inspect(sandbox_id)
     return sandbox.model_dump_json()
 
 
-@mcp.tool
+@mcp.tool(output_schema=None)
 async def sandbox_stop(sandbox_id: str) -> str:
     """Stop a running sandbox."""
     sandbox = await _get_manager().sandbox_stop(sandbox_id)
     return sandbox.model_dump_json()
 
 
-@mcp.tool
+@mcp.tool(output_schema=None)
 async def sandbox_remove(sandbox_id: str, force: bool = False) -> str:
     """Remove a stopped sandbox. Use force=True to remove a running sandbox."""
     await _get_manager().sandbox_remove(sandbox_id, force=force)
     return f'{{"status": "removed", "sandbox_id": "{sandbox_id}"}}'
 
 
-@mcp.tool
+@mcp.tool(output_schema=None)
 async def sandbox_shell(
     sandbox_id: str,
     command: str,
@@ -73,7 +73,7 @@ async def sandbox_shell(
     return result.model_dump_json()
 
 
-@mcp.tool
+@mcp.tool(output_schema=None)
 async def sandbox_download(sandbox_id: str, path: str) -> str:
     """Prepare a file for download from the sandbox. Copies the file to a downloads folder with a unique name and returns a URL where it can be fetched.
 
@@ -85,7 +85,7 @@ async def sandbox_download(sandbox_id: str, path: str) -> str:
     return json.dumps(result)
 
 
-@mcp.tool
+@mcp.tool(output_schema=None)
 async def sandbox_resources(max_depth: int = 2) -> str:
     """List shared read-only resource files available to all sandboxes at /resources.
 
