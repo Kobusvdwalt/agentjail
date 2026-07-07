@@ -169,6 +169,7 @@ Settings are configurable via environment variables (prefix `AGENTJAIL_`):
 |---|---|---|
 | `AGENTJAIL_HOST` | `0.0.0.0` | Listen address |
 | `AGENTJAIL_PORT` | `8000` | Listen port |
+| `AGENTJAIL_RUNNER` | `nsjail` | Sandbox runner: `nsjail`, `chroot`, or `bare` |
 | `AGENTJAIL_SANDBOX_BASE_DIR` | `/var/lib/agentjail/sandboxes` | Where sandbox directories are stored |
 | `AGENTJAIL_STATE_FILE` | `/var/lib/agentjail/state.json` | Path to the JSON state file |
 | `AGENTJAIL_NSJAIL_BIN` | `nsjail` | Path to the nsjail binary |
@@ -190,6 +191,18 @@ security_opt:
 ```
 
 These privileges are for the **container** — nsjail then uses them to create unprivileged sandboxes inside the container. The sandboxed processes themselves have no special capabilities.
+
+### Running without privileges (bare runner)
+
+For environments where you cannot grant special capabilities (e.g. strict Kubernetes PodSecurity policies), use the **bare runner**:
+
+```yaml
+env:
+  - name: AGENTJAIL_RUNNER
+    value: "bare"
+```
+
+⚠️ The bare runner provides **no isolation** — commands run directly as the service user. Use only for prototyping or when the pod itself is your isolation boundary. See `docs/runners.md` for details.
 
 ## Extending the Base Image
 

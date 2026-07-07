@@ -22,7 +22,7 @@ class AgentjailSettings(BaseSettings):
     sandbox_base_dir: Path = Path("/var/lib/agentjail/sandboxes")
     state_file: Path = Path("/var/lib/agentjail/state.json")
 
-    runner: Literal["nsjail", "chroot"] = "nsjail"
+    runner: Literal["nsjail", "chroot", "bare"] = "nsjail"
     nsjail_bin: str = _find_nsjail()
 
     resources_dir: Path | None = Path("/var/lib/agentjail/resources")
