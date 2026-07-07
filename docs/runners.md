@@ -91,6 +91,50 @@ Designed for environments where `CAP_SYS_ADMIN` is blocked (e.g. Kubernetes with
 
 ---
 
+## Bare Runner (`AGENTJAIL_RUNNER=bare`)
+
+⚠️ **WARNING: This runner provides ZERO security isolation.** Commands run directly on the host as the service process user. Use only for prototyping, development, or trusted workloads in environments where nsjail/chroot are unavailable (e.g. strictly locked-down Kubernetes clusters).
+
+### How it works
+
+1. **`setup_sandbox(root_dir)`**: Creates `home/` and `tmp/` directories inside the sandbox root.
+2. **`run_command()`**: Runs the command via `asyncio.create_subprocess_exec` directly on the host, with `cwd` set to the sandbox's working directory and `TMPDIR`/`HOME` pointing at sandbox-local paths.
+
+### What you get
+
+- Per-sandbox working directory (`<root>/home`)
+- Command timeouts (asyncio-based)
+- Full MCP tool surface (create, shell, inspect, stop, remove, host_file, read_media, resources)
+- Full REST API surface
+- Path traversal protection on filesystem API routes (same as other runners)
+
+### What you do NOT get
+
+- No filesystem isolation (commands can access the entire host filesystem)
+- No user namespace / UID separation
+- No PID / network / IPC / UTS namespace isolation
+- No cgroup or rlimit resource enforcement
+- No chroot or mount namespace
+- No privilege reduction of any kind
+
+### When to use
+
+- Kubernetes clusters that deny all special capabilities (`SYS_ADMIN`, `SYS_CHROOT`)
+- Development/prototyping where you just need the MCP tools to work
+- Trusted agent workloads where isolation is handled at a different layer (e.g. the pod itself is the sandbox)
+
+### Kubernetes deployment
+
+```yaml
+env:
+  - name: AGENTJAIL_RUNNER
+    value: "bare"
+# No cap_add, no securityContext escalation needed.
+# Works with restricted PodSecurity profile.
+```
+
+---
+
 ## Adding a new runner
 
 1. Create a new module in `src/agentjail/sandbox/` (e.g. `firecracker.py`)

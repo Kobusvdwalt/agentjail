@@ -17,6 +17,7 @@ from agentjail.sandbox.models import (
     SandboxConfig,
     SandboxState,
 )
+from agentjail.sandbox.bare import BareRunner
 from agentjail.sandbox.chroot import ChrootRunner
 from agentjail.sandbox.nsjail import NsjailRunner
 from agentjail.state import StateManager
@@ -42,11 +43,13 @@ class SandboxManager:
     def __init__(self, settings: AgentjailSettings) -> None:
         self.settings = settings
         self.state = StateManager(settings.state_file)
-        self.runner: NsjailRunner | ChrootRunner = (
-            ChrootRunner(settings)
-            if settings.runner == "chroot"
-            else NsjailRunner(settings)
-        )
+        self.runner: NsjailRunner | ChrootRunner | BareRunner
+        if settings.runner == "bare":
+            self.runner = BareRunner(settings)
+        elif settings.runner == "chroot":
+            self.runner = ChrootRunner(settings)
+        else:
+            self.runner = NsjailRunner(settings)
         settings.sandbox_base_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_limits(
