@@ -1,0 +1,41 @@
+# ── Bare runner image — no nsjail, no special capabilities ──────────────────
+# Use this for Kubernetes environments that deny SYS_ADMIN / SYS_CHROOT.
+# ⚠️  Provides NO sandbox isolation — commands run as the service user.
+
+# ── Stage 1: Build agentjail Python package ─────────────────────────────────
+FROM python:3.14-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /opt/agentjail
+COPY pyproject.toml .
+COPY src/ src/
+COPY config/ config/
+
+RUN uv sync --no-dev --no-editable
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────────
+FROM python:3.14-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/agentjail /opt/agentjail
+
+# Create non-root service user
+RUN groupadd --system service-group \
+    && useradd --system --gid service-group --create-home --shell /bin/bash service
+
+# Prepare state directory
+RUN mkdir -p /var/lib/agentjail/sandboxes \
+    && chown -R service:service-group /var/lib/agentjail
+
+USER service
+
+ENV AGENTJAIL_RUNNER=bare
+
+EXPOSE 8000
+
+ENTRYPOINT ["/opt/agentjail/.venv/bin/agentjail"]
+CMD ["--host", "0.0.0.0", "--port", "8000"]
