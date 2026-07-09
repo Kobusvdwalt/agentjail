@@ -3,19 +3,21 @@
 # ⚠️  Provides NO sandbox isolation — commands run as the service user.
 
 # ── Stage 1: Build agentjail Python package ─────────────────────────────────
-FROM python:3.14-slim AS builder
+FROM ubuntu:24.04 AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+ENV UV_PYTHON_INSTALL_DIR=/opt/agentjail/python
 
 WORKDIR /opt/agentjail
 COPY pyproject.toml .
 COPY src/ src/
 COPY config/ config/
 
-RUN uv sync --no-dev --no-editable
+RUN uv sync --no-dev --no-editable --python 3.14
 
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────
-FROM python:3.14-slim
+FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
