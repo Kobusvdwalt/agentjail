@@ -20,7 +20,7 @@ from agentjail.sandbox.models import (
 from agentjail.sandbox.bare import BareRunner
 from agentjail.sandbox.chroot import ChrootRunner
 from agentjail.sandbox.nsjail import NsjailRunner
-from agentjail.state import StateManager
+from agentjail.state import MetadataStore
 
 
 class SandboxNotFound(Exception):
@@ -42,7 +42,7 @@ class SandboxStillRunning(Exception):
 class SandboxManager:
     def __init__(self, settings: AgentjailSettings) -> None:
         self.settings = settings
-        self.state = StateManager(settings.state_file)
+        self.state = MetadataStore(settings.sandbox_base_dir)
         self.runner: NsjailRunner | ChrootRunner | BareRunner
         if settings.runner == "bare":
             self.runner = BareRunner(settings)
@@ -51,6 +51,7 @@ class SandboxManager:
         else:
             self.runner = NsjailRunner(settings)
         settings.sandbox_base_dir.mkdir(parents=True, exist_ok=True)
+        self.state.directory.mkdir(parents=True, exist_ok=True)
 
     def _validate_limits(
         self,
@@ -142,34 +143,32 @@ class SandboxManager:
             updated_at=now,
         )
 
-        with self.state.transaction() as state:
-            state.sandboxes[sandbox_id] = sandbox
+        self.state.write(sandbox)
 
         return sandbox
 
     async def sandbox_list(self) -> list[SandboxState]:
-        return list(self.state.read().sandboxes.values())
+        return self.state.list()
 
     async def sandbox_inspect(self, sandbox_id: str) -> SandboxState:
         return self._get_sandbox(sandbox_id)
 
     async def sandbox_stop(self, sandbox_id: str) -> SandboxState:
-        with self.state.transaction() as state:
-            sandbox = state.sandboxes.get(sandbox_id)
-            if not sandbox:
-                raise SandboxNotFound(sandbox_id)
-            sandbox.status = "stopped"
-            sandbox.updated_at = datetime.now(timezone.utc)
+        sandbox = self._get_sandbox(sandbox_id)
+        sandbox.status = "stopped"
+        sandbox.updated_at = datetime.now(timezone.utc)
+        self.state.write(sandbox)
         return sandbox
 
     async def sandbox_remove(self, sandbox_id: str, force: bool = False) -> None:
-        with self.state.transaction() as state:
-            sandbox = state.sandboxes.get(sandbox_id)
-            if not sandbox:
-                raise SandboxNotFound(sandbox_id)
-            if sandbox.status == "running" and not force:
-                raise SandboxStillRunning(sandbox_id)
-            state.sandboxes.pop(sandbox_id)
+        sandbox = self._get_sandbox(sandbox_id)
+        if sandbox.status == "running" and not force:
+            raise SandboxStillRunning(sandbox_id)
+        # Metadata first: it is what makes the sandbox findable, so dropping it
+        # before the files means a crash in between leaves an unreachable
+        # directory rather than a sandbox whose files have gone out from under
+        # it.
+        self.state.remove(sandbox_id)
         shutil.rmtree(sandbox.root_dir, ignore_errors=True)
 
     async def sandbox_shell(
@@ -242,8 +241,7 @@ class SandboxManager:
     def _get_sandbox(
         self, sandbox_id: str, require_running: bool = False
     ) -> SandboxState:
-        state = self.state.read()
-        sandbox = state.sandboxes.get(sandbox_id)
+        sandbox = self.state.read(sandbox_id)
         if not sandbox:
             raise SandboxNotFound(sandbox_id)
         if require_running and sandbox.status != "running":

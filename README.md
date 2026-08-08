@@ -171,7 +171,7 @@ Settings are configurable via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_PORT` | `8000` | Listen port |
 | `AGENTJAIL_RUNNER` | `nsjail` | Sandbox runner: `nsjail`, `chroot`, or `bare` |
 | `AGENTJAIL_SANDBOX_BASE_DIR` | `/var/lib/agentjail/sandboxes` | Where sandbox directories are stored |
-| `AGENTJAIL_STATE_FILE` | `/var/lib/agentjail/state.json` | Path to the JSON state file |
+| `AGENTJAIL_STATE_FILE` | _(unused)_ | Deprecated — metadata lives in `meta/` beside the sandbox directory |
 | `AGENTJAIL_NSJAIL_BIN` | `nsjail` | Path to the nsjail binary |
 | `AGENTJAIL_RESOURCES_DIR` | `/var/lib/agentjail/resources` | Read-only files injected into every sandbox at `/resources` |
 | `AGENTJAIL_DEFAULT_TIME_LIMIT` | `30` | Default time limit (seconds) |

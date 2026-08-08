@@ -20,7 +20,14 @@ class AgentjailSettings(BaseSettings):
     port: int = 8000
 
     sandbox_base_dir: Path = Path("/var/lib/agentjail/sandboxes")
-    state_file: Path = Path("/var/lib/agentjail/state.json")
+
+    state_file: Path | None = None
+    """Deprecated, and read by nothing.
+
+    Sandbox metadata lives beside each sandbox now. Kept as a declared setting
+    so a deployment still passing AGENTJAIL_STATE_FILE keeps starting; remove
+    once none of them do.
+    """
 
     runner: Literal["nsjail", "chroot", "bare"] = "nsjail"
     nsjail_bin: str = _find_nsjail()

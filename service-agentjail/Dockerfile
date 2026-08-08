@@ -53,8 +53,8 @@ COPY --from=agentjail-builder /opt/agentjail /opt/agentjail
 RUN groupadd --system service-group \
     && useradd --system --gid service-group --create-home --shell /bin/bash service
 
-# Prepare state directory
-RUN mkdir -p /var/lib/agentjail/sandboxes \
+# Prepare state directories
+RUN mkdir -p /var/lib/agentjail/sandboxes /var/lib/agentjail/meta \
     && chown -R service:service-group /var/lib/agentjail
 
 USER service

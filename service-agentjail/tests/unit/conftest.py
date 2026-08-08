@@ -19,7 +19,6 @@ from agentjail.sandbox.models import ExecResult
 def settings(tmp_path):
     return AgentjailSettings(
         sandbox_base_dir=tmp_path / "sandboxes",
-        state_file=tmp_path / "state.json",
         nsjail_bin="/dev/null",
     )
 
