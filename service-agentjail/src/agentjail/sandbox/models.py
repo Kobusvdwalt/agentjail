@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from agentjail.sandbox.resources import ALL_RESOURCES
+
 
 class SandboxConfig(BaseModel):
     name: str | None = None
@@ -12,6 +14,13 @@ class SandboxConfig(BaseModel):
     env: dict[str, str] = Field(default_factory=dict)
     cwd: str = "/home"
     network: bool = False
+    resources: list[str] = Field(default_factory=lambda: list(ALL_RESOURCES))
+    """Glob patterns selecting which shared resources this sandbox can see.
+
+    Matched against paths relative to the resources directory. Defaults to
+    everything, so a sandbox created without an opinion behaves as it did before
+    this field existed. See `agentjail.sandbox.resources`.
+    """
 
 
 class SandboxState(BaseModel):

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.models import ExecResult, SandboxState
+from agentjail.sandbox.resources import mount_roots
 
 
 class NsjailRunner:
@@ -89,8 +90,7 @@ class NsjailRunner:
         args.extend(["--bindmount", f"{sandbox.root_dir}/home:/home"])
         args.extend(["--bindmount_ro", f"{sandbox.root_dir}/uploads:/uploads"])
 
-        if self.settings.resources_dir and self.settings.resources_dir.is_dir():
-            args.extend(["--bindmount_ro", f"{self.settings.resources_dir}:/resources"])
+        args.extend(self._resource_mounts(sandbox))
 
         args.append("--disable_proc")
         args.extend(["--mount", "none:/tmp:tmpfs:size=67108864"])
@@ -119,4 +119,38 @@ class NsjailRunner:
         args.extend(["--log", log_file])
         args.append("--")
         args.extend(command)
+        return args
+
+    def _resource_mounts(self, sandbox: SandboxState) -> list[str]:
+        """Read-only mounts for the shared resources this sandbox may see.
+
+        The whole directory when the sandbox asked for everything, which is both
+        the default and the cheap path — one mount instead of a walk of the
+        tree. Otherwise the selection is collapsed to its shallowest covering
+        paths and each is mounted at its place under `/resources`.
+
+        This is where the patterns are actually enforced. What is not mounted
+        does not exist inside the jail, so an agent cannot read it whether or
+        not the listing mentioned it.
+        """
+        resources_dir = self.settings.resources_dir
+
+        if not resources_dir or not resources_dir.is_dir():
+            return []
+
+        patterns = sandbox.config.resources
+
+        if not patterns:
+            return []
+
+        if any(pattern in ("*", "**") for pattern in patterns):
+            return ["--bindmount_ro", f"{resources_dir}:/resources"]
+
+        args: list[str] = []
+
+        for rel in mount_roots(resources_dir, patterns):
+            args.extend(
+                ["--bindmount_ro", f"{resources_dir / rel}:/resources/{rel.as_posix()}"]
+            )
+
         return args

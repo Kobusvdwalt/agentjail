@@ -17,6 +17,7 @@ from agentjail.sandbox.models import (
     SandboxConfig,
     SandboxState,
 )
+from agentjail.sandbox.resources import ALL_RESOURCES, selected_paths
 from agentjail.sandbox.bare import BareRunner
 from agentjail.sandbox.chroot import ChrootRunner
 from agentjail.sandbox.nsjail import NsjailRunner
@@ -115,6 +116,7 @@ class SandboxManager:
         env: dict[str, str] | None = None,
         cwd: str = "/home",
         network: bool = False,
+        resources: list[str] | None = None,
     ) -> SandboxState:
         sandbox_id = secrets.token_urlsafe(32)
         root_dir = self.settings.sandbox_base_dir / sandbox_id
@@ -131,6 +133,9 @@ class SandboxManager:
             env=env or {},
             cwd=cwd,
             network=network,
+            # `None` means the caller expressed no opinion and gets everything;
+            # an explicit `[]` means they asked for nothing and get nothing.
+            resources=list(ALL_RESOURCES) if resources is None else list(resources),
         )
         sandbox = SandboxState(
             id=sandbox_id,
@@ -250,24 +255,35 @@ class SandboxManager:
             raise SandboxNotRunning(sandbox_id)
         return sandbox
 
-    def list_resources(self, max_depth: int = 2) -> dict:
-        """List files in the resources directory and parse any SKILL.md files."""
+    def list_resources(self, max_depth: int = 2, sandbox_id: str | None = None) -> dict:
+        """List files in the resources directory and parse any SKILL.md files.
+
+        Scoped to what the sandbox can actually reach. `sandbox_id` is optional
+        only so callers with no sandbox in hand still work; passing one is what
+        makes the listing agree with the mount, and a listing that promises
+        files the sandbox cannot open is worse than no listing at all.
+        """
         resources_dir = self.settings.resources_dir
         if not resources_dir or not resources_dir.is_dir():
             return {"available": False, "files": [], "skills": []}
+
+        patterns = list(ALL_RESOURCES)
+        if sandbox_id is not None:
+            patterns = self._get_sandbox(sandbox_id).config.resources
 
         files: list[str] = []
         skills: list[dict[str, str]] = []
 
         base = resources_dir
 
-        for item in sorted(base.rglob("*")):
-            rel = item.relative_to(base)
+        for rel in selected_paths(base, patterns):
+            item = base / rel
+
             # Enforce max depth
             if len(rel.parts) > max_depth:
                 continue
 
-            entry = str(rel)
+            entry = rel.as_posix()
             if item.is_dir():
                 entry += "/"
             files.append(entry)
@@ -275,7 +291,7 @@ class SandboxManager:
             if item.is_file() and item.name == "SKILL.md":
                 skill = _parse_skill_frontmatter(item)
                 if skill:
-                    skill["location"] = f"/resources/{rel}"
+                    skill["location"] = f"/resources/{rel.as_posix()}"
                     skills.append(skill)
 
         return {"available": True, "files": files, "skills": skills}

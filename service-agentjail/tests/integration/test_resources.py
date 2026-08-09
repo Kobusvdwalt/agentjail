@@ -70,3 +70,79 @@ class TestResources:
         result = await shell(client, sandbox["id"], "find /resources -name SKILL.md")
         assert result["exit_code"] == 0
         assert "/resources/pdf-extractor/SKILL.md" in result["stdout"]
+
+
+class TestResourcePatterns:
+    """Selecting resources per sandbox, enforced by the mount rather than by
+    the listing — so the check that matters is whether an excluded file can be
+    read from inside a real jail."""
+
+    async def test_selected_subset_is_readable(self, client: httpx.AsyncClient):
+        sandbox = await create_sandbox(client, resources=["subdir/**"])
+        try:
+            result = await shell(
+                client, sandbox["id"], "cat /resources/subdir/nested.txt"
+            )
+            assert result["exit_code"] == 0
+            assert "nested file" in result["stdout"]
+        finally:
+            await remove_sandbox(client, sandbox["id"])
+
+    async def test_excluded_file_cannot_be_read(self, client: httpx.AsyncClient):
+        sandbox = await create_sandbox(client, resources=["subdir/**"])
+        try:
+            result = await shell(client, sandbox["id"], "cat /resources/hello.txt")
+            assert result["exit_code"] != 0
+            assert "hello from resources" not in result["stdout"]
+        finally:
+            await remove_sandbox(client, sandbox["id"])
+
+    async def test_excluded_directory_is_not_listed(self, client: httpx.AsyncClient):
+        sandbox = await create_sandbox(client, resources=["subdir/**"])
+        try:
+            result = await shell(client, sandbox["id"], "ls /resources")
+            assert "subdir" in result["stdout"]
+            assert "pdf-extractor" not in result["stdout"]
+            assert "hello.txt" not in result["stdout"]
+        finally:
+            await remove_sandbox(client, sandbox["id"])
+
+    async def test_star_still_sees_everything(self, client: httpx.AsyncClient):
+        sandbox = await create_sandbox(client, resources=["*"])
+        try:
+            result = await shell(client, sandbox["id"], "ls /resources")
+            assert "hello.txt" in result["stdout"]
+            assert "subdir" in result["stdout"]
+        finally:
+            await remove_sandbox(client, sandbox["id"])
+
+    async def test_two_sandboxes_see_different_resources(
+        self, client: httpx.AsyncClient
+    ):
+        # The reason this feature exists: one agent's resources hidden from
+        # another's, on the same shared directory.
+        assistant = await create_sandbox(client, resources=["pdf-extractor/**"])
+        protocols = await create_sandbox(client, resources=["subdir/**"])
+        try:
+            seen_by_assistant = await shell(client, assistant["id"], "ls /resources")
+            seen_by_protocols = await shell(client, protocols["id"], "ls /resources")
+
+            assert "pdf-extractor" in seen_by_assistant["stdout"]
+            assert "subdir" not in seen_by_assistant["stdout"]
+
+            assert "subdir" in seen_by_protocols["stdout"]
+            assert "pdf-extractor" not in seen_by_protocols["stdout"]
+        finally:
+            await remove_sandbox(client, assistant["id"])
+            await remove_sandbox(client, protocols["id"])
+
+    async def test_no_resources_leaves_the_mount_empty(self, client: httpx.AsyncClient):
+        sandbox = await create_sandbox(client, resources=[])
+        try:
+            result = await shell(client, sandbox["id"], "ls /resources")
+            # Nothing mounted, so the directory is absent or empty — either way
+            # no resource file is reachable.
+            assert "hello.txt" not in result["stdout"]
+            assert "pdf-extractor" not in result["stdout"]
+        finally:
+            await remove_sandbox(client, sandbox["id"])

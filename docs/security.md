@@ -12,6 +12,13 @@
 - Atomic state file writes with file locking
 - User runs as uid 1000 inside jail, capabilities dropped (`keep_caps: false`)
 - Chroot runner: FD sanitization closes all inherited file descriptors
+- Per-sandbox resource selection is enforced at mount time, not by filtering the listing — an unselected resource is absent from the mount namespace, so it cannot be read by guessing its path
+
+## Scope of resource patterns
+
+The `resources` patterns on a sandbox decide **what a model running inside that sandbox can read**. They are not an authorization boundary between API callers: anyone who can reach the API can create a sandbox with `["*"]` and read everything (see SA-03 — the API has no authentication). Treat the patterns as separation between agent roles on a trusted caller, and keep genuinely sensitive material out of the shared resources directory entirely.
+
+Patterns are also only applied by the **nsjail** runner, which is the only runner that mounts `/resources`. Under `chroot` and `bare` no resources are mounted at all, so there is nothing to scope.
 
 ## Known vulnerabilities (being addressed)
 
