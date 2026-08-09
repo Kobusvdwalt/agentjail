@@ -42,6 +42,16 @@ System binaries (`/usr`, `/lib`, `/bin`, etc.) are provided via bind mounts (nsj
 
 An optional host directory (`AGENTJAIL_RESOURCES_DIR`, default `/var/lib/agentjail/resources`) is bind-mounted read-only at `/resources` inside every sandbox. All sandboxes share the same files — no copies are made. Host changes are visible immediately. If the directory doesn't exist, the mount is skipped.
 
+### Scoping resources per sandbox
+
+A sandbox may be created with a `resources` list of glob patterns, selecting which parts of that shared directory it can see. The default, `["*"]`, is everything — so a sandbox created without an opinion behaves exactly as before.
+
+This lets one resources directory serve agents with different jobs: an assistant mounting `["assistant/**", "shared/**"]` and a protocol worker mounting `["protocols/**", "shared/**"]` read the same host directory but cannot see each other's material.
+
+The selection is applied at **mount time** (`nsjail.py`), not by filtering the listing. `/resources` is a bind mount, so anything mounted is readable with `cat` whether or not a tool listed it — filtering the listing alone would hide files without protecting them. When patterns select only part of a directory, that directory is descended into and its selected entries are mounted individually at their usual paths; a fully-selected directory is mounted whole, keeping the flag count low.
+
+`sandbox_resources` filters its listing by the same patterns when passed a `sandbox_id`, so agents are not told about files they cannot open.
+
 ## Base image pattern
 
 The production Dockerfile builds a **self-contained agentjail tree** under `/opt/agentjail` containing the nsjail binary, a uv-managed Python interpreter, and the agentjail venv. This entire tree can be copied into any Docker image with a single `COPY --from`:

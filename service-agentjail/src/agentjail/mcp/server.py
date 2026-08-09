@@ -55,8 +55,15 @@ async def sandbox_create(
     env: dict[str, str] | None = None,
     cwd: str = "/home",
     network: bool = False,
+    resources: list[str] | None = None,
 ) -> str:
-    """Create and boot a persistent named sandbox. Returns sandbox state including the sandbox_id needed for all subsequent operations."""
+    """Create and boot a persistent named sandbox. Returns sandbox state including the sandbox_id needed for all subsequent operations.
+
+    resources: Glob patterns selecting which shared /resources files this sandbox
+    can see, relative to the resources root (e.g. ["vigil-api/**", "shared/**"]).
+    Omit for all resources; pass [] for none. Files outside the patterns are not
+    mounted, so they cannot be read from inside the sandbox.
+    """
     sandbox = await _get_manager().sandbox_create(
         name=name,
         time_limit=time_limit,
@@ -65,6 +72,7 @@ async def sandbox_create(
         env=env,
         cwd=cwd,
         network=network,
+        resources=resources,
     )
     return sandbox.model_dump_json()
 
@@ -130,16 +138,20 @@ async def sandbox_read_media(sandbox_id: str, path: str) -> ImageContent | Audio
 
 
 @mcp.tool(output_schema=None)
-async def sandbox_resources(max_depth: int = 2) -> str:
-    """List shared read-only resource files available to all sandboxes at /resources.
+async def sandbox_resources(max_depth: int = 2, sandbox_id: str | None = None) -> str:
+    """List the shared read-only resource files mounted at /resources.
 
     Returns a file listing (up to max_depth levels deep) and any discovered Agent Skills
     with their name, description, and location. To read a skill's full instructions,
     use sandbox_shell to cat the SKILL.md at the returned location.
 
     max_depth: Maximum directory depth to list (default 2).
+    sandbox_id: List what this sandbox can see. Sandboxes may be created with a
+    subset of resources, so pass the id you are working in — without it the
+    listing describes the whole resources directory and may name files that
+    sandbox cannot open.
     """
     import json
 
-    result = _get_manager().list_resources(max_depth=max_depth)
+    result = _get_manager().list_resources(max_depth=max_depth, sandbox_id=sandbox_id)
     return json.dumps(result)

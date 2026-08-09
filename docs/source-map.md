@@ -22,6 +22,7 @@ Quick reference for agents modifying this codebase.
 | `src/agentjail/sandbox/_chroot_exec.py` | Helper script invoked as subprocess by `ChrootRunner`. Performs unshare → uid map → chroot → rlimits → fork → execve. |
 | `src/agentjail/sandbox/bare.py` | `BareRunner` — no-isolation runner. Runs commands directly as subprocesses. For prototyping / locked-down K8s. |
 | `src/agentjail/sandbox/filesystem.py` | Host-side filesystem operations (`fs_read`, `fs_write`, etc.) with `_resolve_safe()` path traversal protection. |
+| `src/agentjail/sandbox/resources.py` | Glob matching for per-sandbox resource selection. `matches()` / `selected_paths()` drive the `sandbox_resources` listing; `mount_roots()` collapses a selection to the shallowest paths for `NsjailRunner` to bind-mount. |
 
 ## API
 

@@ -23,6 +23,12 @@ class SandboxCreateRequest(BaseModel):
     env: dict[str, str] | None = None
     cwd: str = "/home"
     network: bool = False
+    resources: list[str] | None = None
+    """Glob patterns for the shared resources this sandbox may see.
+
+    Relative to the resources directory: `["vigil-api/**", "shared/**"]`. Omit
+    it — or pass `["*"]` — for everything. `[]` gives the sandbox none.
+    """
 
 
 @router.post("/sandbox")
@@ -37,6 +43,7 @@ async def sandbox_create(
         env=body.env,
         cwd=body.cwd,
         network=body.network,
+        resources=body.resources,
     )
 
 

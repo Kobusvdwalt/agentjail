@@ -80,7 +80,7 @@ Point your MCP client at `http://localhost:8000/mcp`. The server exposes 8 tools
 | `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
 | `sandbox_host_file` | Prepare a file for host retrieval (returns a URL to fetch it) |
 | `sandbox_read_media` | Read image/audio files and return MCP media content |
-| `sandbox_resources` | List shared resource files and discovered Agent Skills |
+| `sandbox_resources` | List shared resource files and discovered Agent Skills — pass `sandbox_id` to scope the listing to that sandbox |
 
 To expose only a subset of tools, set `AGENTJAIL_MCP_TOOLS` to a JSON list:
 
@@ -145,6 +145,32 @@ GET    /api/v1/state                 — raw state file
 | `network` | `false` | Enable network access |
 | `env` | `{}` | Environment variables passed into the sandbox |
 | `cwd` | `/home` | Working directory inside the sandbox |
+| `resources` | `["*"]` | Glob patterns for which shared resources are mounted at `/resources` |
+
+### Scoping resources per sandbox
+
+One resources directory can serve agents with different jobs. Pass glob patterns
+(relative to the resources root) and the sandbox sees only those:
+
+```bash
+# The assistant's own material plus the shared set
+curl -X POST localhost:8000/api/v1/sandbox \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "assistant", "resources": ["assistant/**", "shared/**"]}'
+
+# A protocol worker, same directory, different view
+curl -X POST localhost:8000/api/v1/sandbox \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "protocols", "resources": ["protocols/**", "shared/**"]}'
+```
+
+`*` matches within one path segment, `**` across segments, and a bare `*` means
+everything (the default). Pass `[]` for no resources at all.
+
+Unselected files are **not mounted**, so they cannot be read from inside the
+sandbox — this is a mount boundary, not a filtered listing. Note that it
+separates agent roles, not API callers: any caller can create a sandbox with
+`["*"]`, so keep genuinely sensitive material out of the resources directory.
 
 ## Isolation Guarantees
 
