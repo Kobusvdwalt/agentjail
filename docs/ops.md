@@ -20,7 +20,7 @@ Settings via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_HOST` | `0.0.0.0` | Listen address |
 | `AGENTJAIL_PORT` | `8000` | Listen port |
 | `AGENTJAIL_SANDBOX_BASE_DIR` | `/var/lib/agentjail/sandboxes` | Where sandbox directories are stored |
-| `AGENTJAIL_STATE_FILE` | `/var/lib/agentjail/state.json` | Path to the JSON state file |
+| `AGENTJAIL_STATE_FILE` | _(unused)_ | Deprecated. Metadata now lives in `meta/`, a sibling of the sandbox directory. Still accepted so existing deployments start; safe to remove. |
 | `AGENTJAIL_RUNNER` | `nsjail` | Sandbox runner: `nsjail` or `chroot` |
 | `AGENTJAIL_NSJAIL_BIN` | `nsjail` | Path to the nsjail binary |
 | `AGENTJAIL_RESOURCES_DIR` | `/var/lib/agentjail/resources` | Directory of read-only files injected into every sandbox at `/resources`. Set to empty or remove to disable. |

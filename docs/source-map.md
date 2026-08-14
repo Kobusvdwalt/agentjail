@@ -9,7 +9,7 @@ Quick reference for agents modifying this codebase.
 | `src/agentjail/config.py` | `AgentjailSettings` (pydantic-settings). All tunable values, env prefix `AGENTJAIL_`. Includes `runner` field, `bind_mount_ro` list, and `resources_dir`. |
 | `src/agentjail/server.py` | `create_app()` — instantiates settings, manager, MCP, and FastAPI. Mounts MCP at `/mcp`. |
 | `src/agentjail/cli.py` | Typer CLI entry point. Calls `run_server()`. |
-| `src/agentjail/state.py` | `StateManager` — JSON state file with `filelock` + atomic writes via `os.replace()`. |
+| `src/agentjail/state.py` | `MetadataStore` — one JSON file per sandbox under `meta/`, atomic writes via `os.replace()`. Rejects sandbox ids that cannot name a file. |
 
 ## Sandbox
 

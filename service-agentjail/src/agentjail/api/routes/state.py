@@ -12,4 +12,10 @@ def get_manager(request: Request) -> SandboxManager:
 
 @router.get("/state")
 async def get_state(manager: SandboxManager = Depends(get_manager)) -> StateFile:
-    return manager.state.read()
+    """Every sandbox, assembled from the sandbox directory.
+
+    No longer backed by a state file, but the response is unchanged: this is
+    the documented health check, and callers key off `version`.
+    """
+    sandboxes = await manager.sandbox_list()
+    return StateFile(sandboxes={sandbox.id: sandbox for sandbox in sandboxes})

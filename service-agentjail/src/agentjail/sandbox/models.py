@@ -50,5 +50,11 @@ class FileInfo(BaseModel):
 
 
 class StateFile(BaseModel):
+    """The `/state` response — assembled per request, stored nowhere.
+
+    Named for the file it was once read from, and kept in that shape because it
+    is the documented health check.
+    """
+
     version: int = 1
     sandboxes: dict[str, SandboxState] = Field(default_factory=dict)

@@ -72,6 +72,33 @@ The target image needs no extra dependencies or env vars — everything is bundl
 
 See `docs/examples/` for sample Dockerfiles adding Python, Go, and Bun.
 
-## JSON state file
+## Sandbox metadata
 
-Configurable path via `AGENTJAIL_STATE_FILE`. Thread-safe via `filelock`, atomic writes via temp file + `os.replace()`.
+One JSON file per sandbox, in `meta/` beside `sandboxes/`:
+
+```
+/var/lib/agentjail/
+  meta/<sandbox-id>.json    id, name, status, config, timestamps
+  sandboxes/<sandbox-id>/   home/, uploads/, hosted/, nsjail.log
+```
+
+Written atomically — temp file in the same directory, then `os.replace()`. No
+lock: a write touches one sandbox's file, and ids are unguessable and issued one
+at a time, so two writers meet only when working on the same sandbox.
+
+Metadata is kept out of `sandboxes/<id>/` deliberately. The filesystem API
+resolves downloads against the sandbox root, and `config.env` holds whatever
+credential the sandbox was created with; storing it under that root would make
+it readable through `/fs/download`.
+
+### Running more than one instance
+
+Because there is no shared index, several agentjail processes can serve one
+`sandboxes/` + `meta/` pair — separate pods over a ReadWriteMany volume, behind
+an ordinary round-robin Service. Nothing is held in memory between requests:
+every lookup reads metadata from disk, and nsjail is invoked per call in
+`STANDALONE_ONCE` mode, so no sandbox is bound to the instance that created it.
+
+A single registry file could not do this — every create was a read-modify-write
+of the whole fleet's state, correct only while the lock serialising it held, and
+network filesystems are where `flock` stops being dependable.
