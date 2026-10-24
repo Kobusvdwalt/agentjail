@@ -15,6 +15,8 @@ Quick reference for agents modifying this codebase.
 
 | File | Purpose |
 |---|---|
+| `src/agentjail/sandbox/lease.py` | In-memory execution lease identity/deadline and public lease grant models. |
+| `src/agentjail/sandbox/process.py` | Shared process sessions, cancellation, timeout and bounded output supervision. |
 | `src/agentjail/sandbox/models.py` | Pydantic models: `SandboxConfig`, `SandboxState`, `ExecResult`, `FileInfo`, `StateFile`. |
 | `src/agentjail/sandbox/manager.py` | `SandboxManager` — all sandbox lifecycle + filesystem operations. Selects runner based on `settings.runner`. |
 | `src/agentjail/sandbox/nsjail.py` | `NsjailRunner` — builds nsjail CLI args and runs subprocess. `_build_args()` is where all nsjail flags are assembled. |
@@ -28,12 +30,13 @@ Quick reference for agents modifying this codebase.
 
 | File | Purpose |
 |---|---|
+| `src/agentjail/api/auth.py` | ASGI bearer authentication covering REST and mounted MCP. |
 | `src/agentjail/api/app.py` | FastAPI app factory. Registers route modules. |
 | `src/agentjail/api/routes/sandbox.py` | REST routes: create, inspect, stop, remove. |
 | `src/agentjail/api/routes/exec.py` | REST routes: shell (via /bin/sh -c). |
 | `src/agentjail/api/routes/filesystem.py` | REST routes: upload, direct download, host-file prepare + hosted fetch. |
 | `src/agentjail/api/routes/state.py` | REST route: raw state file dump (to be removed). |
-| `src/agentjail/mcp/server.py` | FastMCP tool definitions (8 tools). Uses global `_manager`. |
+| `src/agentjail/mcp/server.py` | FastMCP tool definitions (10 tools). Uses global `_manager`. |
 
 ## Infrastructure
 
@@ -41,6 +44,7 @@ Quick reference for agents modifying this codebase.
 |---|---|
 | `config/nsjail_default.cfg` | Reference/documentation nsjail config (NOT used at runtime — args built in Python). |
 | `Dockerfile` | Production image — 3-stage build (nsjail + agentjail-builder + runtime). Produces self-contained `/opt/agentjail` tree that can be `COPY --from`'d into any image. Runs as non-root `service` user. |
+| `Dockerfile.verify` | Local regression image: patched source over the digest-pinned baseline runtime. Not a production release. |
 | `dev.dockerfile` | Dev image — uses `python:3.14-slim`, runs as `service` user, has `--reload`. |
 | `default.env` | Default environment variables for docker-compose. |
 

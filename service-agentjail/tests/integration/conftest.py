@@ -50,6 +50,7 @@ def container(image, resources_dir):
         DockerContainer(image)
         .with_exposed_ports(8000)
         .with_env_file(str(Path(SERVICE_DIR) / "default.env"))
+        .with_env("AGENTJAIL_API_TOKEN", "integration-test-token-379-not-a-secret")
         .with_volume_mapping(resources_dir, "/var/lib/agentjail/resources", "ro")
         .with_kwargs(
             privileged=True,
@@ -73,7 +74,11 @@ def base_url(container):
 
 @pytest_asyncio.fixture
 async def client(base_url):
-    async with httpx.AsyncClient(base_url=base_url, timeout=60.0) as c:
+    async with httpx.AsyncClient(
+        base_url=base_url,
+        timeout=60.0,
+        headers={"Authorization": "Bearer integration-test-token-379-not-a-secret"},
+    ) as c:
         yield c
 
 

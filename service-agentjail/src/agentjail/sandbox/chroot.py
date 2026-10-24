@@ -14,17 +14,15 @@ Does NOT provide (compared to nsjail):
 - /dev device nodes (no mknod in user namespace)
 """
 
-import asyncio
 import json
-import os
 import shutil
-import signal
 import subprocess
 import sys
 from pathlib import Path
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.models import ExecResult, SandboxState
+from agentjail.sandbox.process import run_process
 
 
 class ChrootRunner:
@@ -125,31 +123,9 @@ class ChrootRunner:
             "rlimit_nofile": 256,
         }
 
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "-m",
-            "agentjail.sandbox._chroot_exec",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            start_new_session=True,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(input=json.dumps(config).encode()),
-                timeout=effective_timeout,
-            )
-        except asyncio.TimeoutError:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            await proc.wait()
-            return ExecResult(exit_code=-1, stdout="", stderr="", timed_out=True)
-
-        return ExecResult(
-            exit_code=proc.returncode or 0,
-            stdout=stdout.decode(errors="replace"),
-            stderr=stderr.decode(errors="replace"),
+        return await run_process(
+            [sys.executable, "-m", "agentjail.sandbox._chroot_exec"],
+            timeout=effective_timeout,
+            output_limit=self.settings.max_output_bytes,
+            stdin=json.dumps(config).encode(),
         )

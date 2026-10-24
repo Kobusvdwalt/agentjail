@@ -17,6 +17,8 @@ ALL_TOOLS = [
     "sandbox_stop",
     "sandbox_remove",
     "sandbox_shell",
+    "sandbox_acquire_lease",
+    "sandbox_renew_lease",
     "sandbox_host_file",
     "sandbox_read_media",
     "sandbox_resources",
@@ -102,11 +104,32 @@ async def sandbox_remove(sandbox_id: str, force: bool = False) -> str:
 async def sandbox_shell(
     sandbox_id: str,
     command: str,
+    lease_token: str,
     timeout: int | None = None,
 ) -> str:
     """Execute a shell command string with pipes, redirects, and shell syntax."""
-    result = await _get_manager().sandbox_shell(sandbox_id, command, timeout=timeout)
+    result = await _get_manager().sandbox_shell(
+        sandbox_id, command, timeout=timeout, lease_token=lease_token
+    )
     return result.model_dump_json()
+
+
+@mcp.tool(output_schema=None)
+async def sandbox_acquire_lease(sandbox_id: str, lease_seconds: int = 120) -> str:
+    """Acquire exclusive execution ownership, resuming persistent files if stopped."""
+    return (
+        await _get_manager().acquire_lease(sandbox_id, lease_seconds)
+    ).model_dump_json()
+
+
+@mcp.tool(output_schema=None)
+async def sandbox_renew_lease(
+    sandbox_id: str, lease_token: str, lease_seconds: int = 120
+) -> str:
+    """Renew an active execution lease. Expired or revoked leases cannot renew."""
+    return (
+        await _get_manager().renew_lease(sandbox_id, lease_token, lease_seconds)
+    ).model_dump_json()
 
 
 @mcp.tool(output_schema=None)

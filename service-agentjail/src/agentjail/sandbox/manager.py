@@ -1,3 +1,4 @@
+import asyncio
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,6 +7,7 @@ import secrets
 import yaml
 
 from agentjail.sandbox.filesystem import _resolve_safe
+from agentjail.sandbox.lease import ExecutionLease, LeaseConflict, LeaseGrant
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.filesystem import (
@@ -40,9 +42,17 @@ class SandboxStillRunning(Exception):
     pass
 
 
+class SandboxCapacityExceeded(Exception):
+    pass
+
+
 class SandboxManager:
     def __init__(self, settings: AgentjailSettings) -> None:
         self.settings = settings
+        self._active: dict[str, set[asyncio.Task[ExecResult]]] = {}
+        self._leases: dict[str, ExecutionLease] = {}
+        self._workspace_locks: dict[str, asyncio.Lock] = {}
+        self._closing = False
         self.state = StateManager(settings.state_file)
         self.runner: NsjailRunner | ChrootRunner | BareRunner
         if settings.runner == "bare":
@@ -59,6 +69,11 @@ class SandboxManager:
         memory_limit: int | None,
         pids_limit: int | None,
     ) -> tuple[int, int, int]:
+        if any(
+            value is not None and value <= 0
+            for value in (time_limit, memory_limit, pids_limit)
+        ):
+            raise ValueError("Resource limits must be positive")
         tl = min(
             time_limit or self.settings.default_time_limit, self.settings.max_time_limit
         )
@@ -159,37 +174,147 @@ class SandboxManager:
         return self._get_sandbox(sandbox_id)
 
     async def sandbox_stop(self, sandbox_id: str) -> SandboxState:
-        with self.state.transaction() as state:
-            sandbox = state.sandboxes.get(sandbox_id)
-            if not sandbox:
-                raise SandboxNotFound(sandbox_id)
-            sandbox.status = "stopped"
-            sandbox.updated_at = datetime.now(timezone.utc)
-        return sandbox
+        async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
+            with self.state.transaction() as state:
+                sandbox = state.sandboxes.get(sandbox_id)
+                if not sandbox:
+                    raise SandboxNotFound(sandbox_id)
+                sandbox.status = "stopped"
+                sandbox.updated_at = datetime.now(timezone.utc)
+            await self._revoke_lease(sandbox_id)
+            return sandbox
 
     async def sandbox_remove(self, sandbox_id: str, force: bool = False) -> None:
-        with self.state.transaction() as state:
-            sandbox = state.sandboxes.get(sandbox_id)
-            if not sandbox:
-                raise SandboxNotFound(sandbox_id)
-            if sandbox.status == "running" and not force:
-                raise SandboxStillRunning(sandbox_id)
-            state.sandboxes.pop(sandbox_id)
-        shutil.rmtree(sandbox.root_dir, ignore_errors=True)
+        async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
+            with self.state.transaction() as state:
+                sandbox = state.sandboxes.get(sandbox_id)
+                if not sandbox:
+                    raise SandboxNotFound(sandbox_id)
+                if sandbox.status == "running" and not force:
+                    raise SandboxStillRunning(sandbox_id)
+                state.sandboxes.pop(sandbox_id)
+            await self._revoke_lease(sandbox_id)
+            shutil.rmtree(sandbox.root_dir, ignore_errors=True)
+
+    async def acquire_lease(self, sandbox_id: str, seconds: int) -> LeaseGrant:
+        if not 1 <= seconds <= 300:
+            raise ValueError("Lease duration must be between 1 and 300 seconds")
+        async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
+            self._get_sandbox(sandbox_id)
+            if self._closing:
+                raise SandboxNotRunning(sandbox_id)
+            current = self._leases.get(sandbox_id)
+            if current and current.deadline > asyncio.get_running_loop().time():
+                raise LeaseConflict("Workspace already has an active lease")
+            await self._revoke_lease(sandbox_id)
+            with self.state.transaction() as state:
+                sandbox = state.sandboxes[sandbox_id]
+                sandbox.status = "running"
+                sandbox.updated_at = datetime.now(timezone.utc)
+            lease = ExecutionLease(
+                secrets.token_urlsafe(32), asyncio.get_running_loop().time() + seconds
+            )
+            self._leases[sandbox_id] = lease
+            lease.timer = asyncio.create_task(self._expire_lease(sandbox_id, lease))
+            return LeaseGrant(lease_token=lease.token, lease_seconds=seconds)
+
+    async def renew_lease(
+        self, sandbox_id: str, token: str, seconds: int
+    ) -> LeaseGrant:
+        if not 1 <= seconds <= 300:
+            raise ValueError("Lease duration must be between 1 and 300 seconds")
+        async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
+            self._get_sandbox(sandbox_id, require_running=True)
+            lease = self._require_lease(sandbox_id, token)
+            lease.timer.cancel()
+            lease.deadline = asyncio.get_running_loop().time() + seconds
+            lease.timer = asyncio.create_task(self._expire_lease(sandbox_id, lease))
+            return LeaseGrant(lease_token=lease.token, lease_seconds=seconds)
+
+    def _require_lease(self, sandbox_id: str, token: str) -> ExecutionLease:
+        lease = self._leases.get(sandbox_id)
+        if (
+            not lease
+            or not secrets.compare_digest(token.encode(), lease.token.encode())
+            or lease.deadline <= asyncio.get_running_loop().time()
+        ):
+            raise LeaseConflict("Execution lease is missing, expired or revoked")
+        return lease
+
+    async def _expire_lease(self, sandbox_id: str, lease: ExecutionLease) -> None:
+        await asyncio.sleep(max(0, lease.deadline - asyncio.get_running_loop().time()))
+        async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
+            if self._leases.get(sandbox_id) is not lease:
+                return
+            with self.state.transaction() as state:
+                sandbox = state.sandboxes.get(sandbox_id)
+                if sandbox:
+                    sandbox.status = "stopped"
+                    sandbox.updated_at = datetime.now(timezone.utc)
+            await self._revoke_lease(sandbox_id)
+
+    async def _revoke_lease(self, sandbox_id: str) -> None:
+        lease = self._leases.pop(sandbox_id, None)
+        if lease and lease.timer is not asyncio.current_task():
+            lease.timer.cancel()
+        await self._cancel_commands(sandbox_id)
 
     async def sandbox_shell(
         self,
         sandbox_id: str,
         command: str,
         timeout: int | None = None,
+        lease_token: str = "",
     ) -> ExecResult:
         sandbox = self._get_sandbox(sandbox_id, require_running=True)
-        effective_timeout = (
-            min(timeout, self.settings.max_time_limit) if timeout else None
+        if self._closing:
+            raise SandboxNotRunning(sandbox_id)
+        lease = self._require_lease(sandbox_id, lease_token)
+        if sum(map(len, self._active.values())) >= self.settings.max_active_commands:
+            raise SandboxCapacityExceeded()
+        if timeout is not None and timeout <= 0:
+            raise ValueError("Command timeout must be positive")
+        effective_timeout = min(
+            timeout or sandbox.config.time_limit,
+            self.settings.max_time_limit,
+            lease.deadline - asyncio.get_running_loop().time(),
         )
-        return await self.runner.run_command(
-            sandbox, ["/bin/sh", "-c", command], timeout=effective_timeout
+        task = asyncio.create_task(
+            self.runner.run_command(
+                sandbox, ["/bin/sh", "-c", command], timeout=effective_timeout
+            )
         )
+        active = self._active.setdefault(sandbox_id, set())
+        active.add(task)
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            if asyncio.current_task().cancelling():
+                if not task.cancelling():
+                    task.cancel()
+                await asyncio.shield(asyncio.gather(task, return_exceptions=True))
+                raise
+            return ExecResult(exit_code=-1, stdout="", stderr="", killed=True)
+        finally:
+            active.discard(task)
+            if not active:
+                self._active.pop(sandbox_id, None)
+
+    async def _cancel_commands(self, sandbox_id: str) -> None:
+        tasks = list(self._active.get(sandbox_id, ()))
+        for task in tasks:
+            if not task.cancelling():
+                task.cancel()
+        await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
+
+    async def shutdown(self) -> None:
+        self._closing = True
+        timers = [lease.timer for lease in self._leases.values()]
+        self._leases.clear()
+        for timer in timers:
+            timer.cancel()
+        await asyncio.gather(*timers, return_exceptions=True)
+        await asyncio.gather(*(self._cancel_commands(id) for id in list(self._active)))
 
     async def sandbox_host_file(self, sandbox_id: str, path: str) -> dict:
         sandbox = self._get_sandbox(sandbox_id)

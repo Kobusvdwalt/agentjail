@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agentjail.sandbox.manager import (
     SandboxManager,
@@ -7,6 +7,7 @@ from agentjail.sandbox.manager import (
     SandboxStillRunning,
 )
 from agentjail.sandbox.models import SandboxState
+from agentjail.sandbox.lease import LeaseGrant
 
 router = APIRouter()
 
@@ -17,9 +18,9 @@ def get_manager(request: Request) -> SandboxManager:
 
 class SandboxCreateRequest(BaseModel):
     name: str | None = None
-    time_limit: int | None = None
-    memory_limit: int | None = None
-    pids_limit: int | None = None
+    time_limit: int | None = Field(default=None, gt=0)
+    memory_limit: int | None = Field(default=None, gt=0)
+    pids_limit: int | None = Field(default=None, gt=0)
     env: dict[str, str] | None = None
     cwd: str = "/home"
     network: bool = False
@@ -29,6 +30,32 @@ class SandboxCreateRequest(BaseModel):
     Relative to the resources directory: `["vigil-api/**", "shared/**"]`. Omit
     it — or pass `["*"]` — for everything. `[]` gives the sandbox none.
     """
+
+
+class LeaseRequest(BaseModel):
+    lease_seconds: int = Field(default=120, ge=1, le=300)
+
+
+class RenewLeaseRequest(LeaseRequest):
+    lease_token: str = Field(min_length=1, max_length=128)
+
+
+@router.post("/sandbox/{sandbox_id}/lease")
+async def acquire_lease(
+    sandbox_id: str,
+    body: LeaseRequest,
+    manager: SandboxManager = Depends(get_manager),
+) -> LeaseGrant:
+    return await manager.acquire_lease(sandbox_id, body.lease_seconds)
+
+
+@router.post("/sandbox/{sandbox_id}/lease/renew")
+async def renew_lease(
+    sandbox_id: str,
+    body: RenewLeaseRequest,
+    manager: SandboxManager = Depends(get_manager),
+) -> LeaseGrant:
+    return await manager.renew_lease(sandbox_id, body.lease_token, body.lease_seconds)
 
 
 @router.post("/sandbox")

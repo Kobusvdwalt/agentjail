@@ -1,54 +1,79 @@
-# Security Audit (May 2026)
+# Security boundaries
 
-## What's solid
+## Control plane
 
-- Path traversal protection in filesystem API uses `.resolve()` + `is_relative_to()`
-- Sandbox IDs use `secrets.token_urlsafe(32)` (256-bit entropy) — unguessable even without authentication
-- Namespace isolation is comprehensive (PID, NET, MNT, UTS, IPC, USER)
-- Read-only system mounts prevent host binary tampering
-- `/dev` as tmpfs with only safe device nodes
-- `/tmp` as ephemeral tmpfs per command (nsjail) or cleaned between commands (chroot)
-- Resource limits set (rlimit_as, rlimit_nproc, rlimit_fsize, rlimit_nofile, max_cpus, time_limit)
-- Atomic state file writes with file locking
-- User runs as uid 1000 inside jail, capabilities dropped (`keep_caps: false`)
-- Chroot runner: FD sanitization closes all inherited file descriptors
-- Per-sandbox resource selection is enforced at mount time, not by filtering the listing — an unselected resource is absent from the mount namespace, so it cannot be read by guessing its path
+Every HTTP REST/MCP request requires the service bearer credential, except the
+fixed `/health` response. HTTP startup fails without `AGENTJAIL_API_TOKEN` of at
+least 32 characters. The middleware also covers state, docs and file downloads.
+Use a randomly generated credential and TLS; possession of the credential grants
+administrative control over every workspace. Never expose it to models, commands,
+workspace files, public artifact links or untrusted API callers.
 
-## Scope of resource patterns
+This is service authentication, not user/organization authorization. The caller
+must authorize the current organization membership and resolve the correct
+workspace before invoking Agentjail. Resource globs and opaque sandbox IDs do not
+replace those checks. Direct administrative MCP access is unsuitable for Vigil
+models, regardless of a tool allowlist.
 
-The `resources` patterns on a sandbox decide **what a model running inside that sandbox can read**. They are not an authorization boundary between API callers: anyone who can reach the API can create a sandbox with `["*"]` and read everything (see SA-03 — the API has no authentication). Treat the patterns as separation between agent roles on a trusted caller, and keep genuinely sensitive material out of the shared resources directory entirely.
+## Execution authority
 
-Patterns are also only applied by the **nsjail** runner, which is the only runner that mounts `/resources`. Under `chroot` and `bare` no resources are mounted at all, so there is nothing to scope.
+Persistent shell execution requires a workspace-scoped lease with a server-side
+monotonic deadline. Lease tokens are random, never persisted, and absent from
+inspection/state responses. An active lease cannot be overwritten by acquire.
+Stop/expiry revokes authority before terminating commands; new acquisition waits
+for that cleanup. Old tokens cannot execute or renew after replacement. All
+leases become invalid on service restart while persistent files remain.
 
-## Known vulnerabilities (being addressed)
+Timeouts, HTTP disconnect, stop, force removal and manager shutdown cancel the
+registered runner task. Shared process supervision kills its POSIX process group
+and awaits completion while draining bounded stdout/stderr buffers. In nsjail,
+the command also runs in a PID namespace; terminating its init removes namespace
+descendants. Bare mode has no such boundary: deliberately detached processes can
+escape the process group. Never use bare mode for untrusted workloads.
 
-| ID | Severity | Issue | Plan |
-|---|---|---|---|
-| SA-01 | CRITICAL | Production Dockerfile runs as root in privileged container | Plan 02 |
-| SA-02 | CRITICAL | Host `/proc` bind-mounted into sandboxes — leaks env vars, process info (nsjail only) | Plan 03 |
-| SA-03 | CRITICAL | No authentication on API | Future |
-| SA-04 | HIGH | Network-enabled sandboxes can reach localhost:8000 (the API itself) and cloud metadata endpoints | Future |
-| SA-05 | HIGH | No seccomp-bpf syscall whitelist in nsjail | Future |
-| SA-06 | HIGH | No upper bounds on resource limits — API callers can set time_limit=999999 | Plan 04 |
-| SA-07 | MEDIUM | TOCTOU race in filesystem API (symlink swap between resolve and operation) | Future |
-| SA-08 | MEDIUM | `GET /api/v1/state` exposes internal host paths | Plan 06 |
-| SA-09 | MEDIUM | No sandbox count or disk usage limits | Plan 05 |
-| SA-10 | LOW | ~~Sandbox IDs are UUID4 (122-bit entropy) — upgrade to 256-bit~~ **FIXED** | Plan 01 |
-| SA-11 | LOW | `/sys/fs/cgroup` bind-mounted read-only, exposes cgroup topology (nsjail only) | Plan 03 |
+Only one service process may own a state/storage root. The JSON file lock
+protects file updates; it does not coordinate live leases or process registries
+between service processes. Command admission is bounded by
+`AGENTJAIL_MAX_ACTIVE_COMMANDS`. Captured output retains at most
+`AGENTJAIL_MAX_OUTPUT_BYTES` raw bytes per stream while excess output is drained.
 
-## Runner-specific security notes
+The local regression proof checks real nsjail delayed writes after HTTP abort,
+stop and lease expiry, persistent file recovery, REST/MCP authentication and
+Mastra tool dispatch. It does not establish a production AKS isolation profile.
 
-### nsjail
-- Strongest isolation (mount namespace, seccomp-bpf, cgroup limits)
-- Requires elevated container privileges (`CAP_SYS_ADMIN`, apparmor/seccomp disabled)
-- `/proc` leak is the biggest concern
+## Filesystem and network
 
-### chroot
-- No elevated container privileges needed — smaller attack surface at container level
-- No mount namespace — chroot escape is theoretically possible with a kernel bug
-- No `/proc` or `/sys` exposure — avoids SA-02 and SA-11 entirely
-- No network opt-in — all sandboxes are network-isolated (avoids SA-04)
+The nsjail runner mounts selected resources read-only, and an unselected resource
+is absent from its mount namespace. `resources` still defaults to all resources;
+supervisors should explicitly request `[]` or an approved selection. The runner
+does not mount `/proc`, and supplies an explicit environment rather than copying
+the supervisor's environment. Read-only `/etc` and `/sys/fs/cgroup` mounts remain;
+do not store credentials in reachable paths.
 
-## Most likely sandbox escape vector
+Network is isolated by default. Opting into `network: true` gives commands the
+service container's network access, without a destination allowlist. Bearer
+authentication prevents unauthenticated control-plane calls but does not block
+access to metadata endpoints or other private services. A production deployment
+needs explicit egress and ingress policy, including metadata/control-plane denial.
 
-A network-enabled sandbox (nsjail with `network: true`) calling `localhost:8000` to manipulate the agentjail API itself (create more sandboxes, read state file with host paths, etc.), combined with `/proc` information to discover secrets. The namespace isolation itself is solid — escape requires a kernel vulnerability.
+## Remaining work before hostile tenant execution
+
+- Verify nested user namespaces, seccomp/AppArmor policy and storage mounts on
+  the actual AKS runtime. The reference nsjail config is not loaded by the runner;
+  it does not enable a syscall policy. Do not infer required capabilities from
+  the broad example Compose profile or treat namespace isolation as a VM boundary.
+- Enforce organization/workspace mapping at the trusted Vigil API/worker boundary
+  and bind execution leases to its current assignment/run ownership.
+- Add aggregate disk/workspace quotas and retention. Per-file rlimits and bounded
+  output do not bound total disk usage or prevent CPU/resource contention.
+- Resolve filesystem symlink-swap races between path resolution and file use.
+  `_resolve_safe()` rejects traversal at resolution time, not later mutation.
+- Restrict state access to supervisors; it still exposes internal paths and
+  workspace configuration to authenticated administrators.
+- Pin production image/build inputs and verify recovery over the actual persistent
+  volume after pod replacement. The digest-pinned verification image is a local
+  regression fixture, not a production release.
+
+Authentication, execution leases and process cleanup address the demonstrated
+control-plane/cancellation gaps. These remaining controls are required before
+enabling Vigil agents to execute arbitrary code in production.

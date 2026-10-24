@@ -20,11 +20,11 @@ Does NOT provide:
 - Any form of privilege reduction
 """
 
-import asyncio
 from pathlib import Path
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.models import ExecResult, SandboxState
+from agentjail.sandbox.process import run_process
 
 
 class BareRunner:
@@ -67,27 +67,10 @@ class BareRunner:
         if env:
             merged_env.update(env)
 
-        proc = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        return await run_process(
+            command,
+            timeout=effective_timeout,
+            output_limit=self.settings.max_output_bytes,
             cwd=str(real_cwd),
             env=merged_env,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=effective_timeout,
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-            return ExecResult(exit_code=-1, stdout="", stderr="", timed_out=True)
-
-        return ExecResult(
-            exit_code=proc.returncode or 0,
-            stdout=stdout.decode(errors="replace"),
-            stderr=stderr.decode(errors="replace"),
-            timed_out=False,
         )

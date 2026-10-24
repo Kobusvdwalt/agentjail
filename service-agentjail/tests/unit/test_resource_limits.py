@@ -83,7 +83,7 @@ class TestShellTimeoutClamping:
         mock_nsjail_run.return_value = ExecResult(exit_code=0, stdout="ok\n", stderr="")
         await shell(client, sandbox["id"], "echo ok", timeout=999999)
         _, kwargs = mock_nsjail_run.call_args
-        assert kwargs["timeout"] == 3600
+        assert 0 < kwargs["timeout"] <= 120
 
     async def test_shell_timeout_below_max_unchanged(
         self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
@@ -93,13 +93,13 @@ class TestShellTimeoutClamping:
         _, kwargs = mock_nsjail_run.call_args
         assert kwargs["timeout"] == 10
 
-    async def test_shell_timeout_none_passes_none(
+    async def test_shell_timeout_none_uses_sandbox_default(
         self, client: httpx.AsyncClient, sandbox: dict, mock_nsjail_run
     ):
         mock_nsjail_run.return_value = ExecResult(exit_code=0, stdout="ok\n", stderr="")
         await shell(client, sandbox["id"], "echo ok")
         _, kwargs = mock_nsjail_run.call_args
-        assert kwargs["timeout"] is None
+        assert kwargs["timeout"] == 30
 
 
 class TestValidateLimitsDirectly:
