@@ -1,4 +1,8 @@
+from weakref import WeakKeyDictionary
+
 import httpx
+
+_lease_tokens = WeakKeyDictionary()
 
 
 async def create_sandbox(client: httpx.AsyncClient, **overrides) -> dict:
@@ -16,7 +20,14 @@ async def remove_sandbox(
 async def shell(
     client: httpx.AsyncClient, sandbox_id: str, command: str, timeout: int | None = None
 ) -> dict:
-    body: dict = {"command": command}
+    tokens = _lease_tokens.setdefault(client, {})
+    if sandbox_id not in tokens:
+        grant = await client.post(
+            f"/sandbox/{sandbox_id}/lease", json={"lease_seconds": 120}
+        )
+        assert grant.status_code == 200
+        tokens[sandbox_id] = grant.json()["lease_token"]
+    body: dict = {"command": command, "lease_token": tokens[sandbox_id]}
     if timeout is not None:
         body["timeout"] = timeout
     resp = await client.post(f"/sandbox/{sandbox_id}/shell", json=body)

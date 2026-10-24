@@ -1,0 +1,4 @@
+FROM ghcr.io/kobusvdwalt/agentjail@sha256:05164482087ed3189b5899e8df83e0decfb6f82e0fd0c9b1a9090da8e6b335a4
+USER root
+COPY --chown=service:service-group src/agentjail /opt/agentjail/.venv/lib/python3.14/site-packages/agentjail
+USER service

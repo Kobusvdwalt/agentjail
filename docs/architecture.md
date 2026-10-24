@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sandboxed command execution service for AI agents. Provides isolated environments via MCP (for Claude/Cursor) and a REST API. Supports pluggable sandbox runners — currently **nsjail** (full isolation, requires `CAP_SYS_ADMIN`) and **chroot** (user-namespace isolation, works on restrictive Kubernetes clusters).
+Sandboxed command execution service for AI agents. Provides isolated environments via MCP (for Claude/Cursor) and a REST API. Supports pluggable sandbox runners — currently **nsjail** (namespace isolation; container profile must be verified) and **chroot** (user namespaces plus chroot; runtime support must also be verified).
 
 ## Single process, single port
 
@@ -10,12 +10,17 @@ FastMCP is mounted as an ASGI sub-app inside FastAPI. One uvicorn process serves
 
 ## Sandbox modes
 
-1. **Persistent API mode** (`POST /api/v1/sandbox` → shell/filesystem routes) — creates a sandbox with a UUID, stores state in a JSON file. The sandbox's writable directory persists across calls until explicitly removed.
+1. **Persistent API mode** (`POST /api/v1/sandbox` → shell/filesystem routes) — creates a sandbox with an opaque random ID, stores state in a JSON file. The sandbox's writable directory persists across calls until explicitly removed.
 2. **Ephemeral manager mode** (`SandboxManager.sandbox_run()`) — creates a temp directory, runs a single command, and deletes the directory. This mode exists in the manager layer but is not exposed as a REST endpoint in the current API surface.
 
 ## No long-running daemon
 
-Each command spawns a fresh isolation process (nsjail or chroot helper). "Running" means "can accept commands", not "has a live process". State is tracked in a JSON file, not by process liveness.
+Each command spawns a fresh isolation process (nsjail or chroot helper). "Running" means "can accept commands", not "has a live process". Workspace configuration is tracked in a JSON file. Live lease authority,
+expiry tasks and registered command tasks belong to one manager process. An
+execution lease is mandatory even when a workspace's persisted status is running.
+A service restart loses lease authority and requires reacquisition, preserving
+workspace files. Run exactly one service process per state/storage root; state
+file locks do not fence executions in other service processes.
 
 ## Pluggable runner architecture
 
@@ -25,7 +30,7 @@ Currently supported runners:
 
 | Runner | Env value | Requires | Best for |
 |---|---|---|---|
-| **nsjail** | `nsjail` (default) | `CAP_SYS_ADMIN`, `apparmor=unconfined`, `seccomp=unconfined` | Docker Compose, unrestricted environments |
+| **nsjail** | `nsjail` (default) | Verified namespace/mount security profile | Namespace-isolated execution |
 | **chroot** | `chroot` | No special capabilities | Kubernetes (baseline PodSecurity), restricted environments |
 
 Adding a new runner requires implementing `setup_sandbox(root_dir)` and `run_command(sandbox, command, timeout, env, cwd) -> ExecResult`, then registering it in `manager.py`.
@@ -75,3 +80,24 @@ See `docs/examples/` for sample Dockerfiles adding Python, Go, and Bun.
 ## JSON state file
 
 Configurable path via `AGENTJAIL_STATE_FILE`. Thread-safe via `filelock`, atomic writes via temp file + `os.replace()`.
+
+## Execution lifecycle
+
+The supervisor authenticates with a service bearer credential, creates/resolves
+its authorized workspace, and acquires an exclusive lease. Commands carry that
+workspace's token and receive a deadline no later than its remaining lease.
+Renewal updates admission for future commands. Stop/expiry invalidates the token
+before cancelling registered tasks; reacquisition waits for prior cleanup before
+issuing a new token. Stop and force removal therefore fence old execution before
+reusing or deleting its files.
+
+All runners use `sandbox/process.py` for POSIX process sessions, cancellation,
+timeouts and bounded concurrent stdout/stderr draining. The runner task remains
+registered until process cleanup finishes. Request disconnection and service
+shutdown cancel that task through the same path. A global active-command limit
+rejects work rather than retaining an unbounded queue.
+
+The ASGI bearer middleware wraps REST, documentation and the mounted MCP app.
+Only the fixed health response bypasses authentication. Lease tokens never enter
+persistent state. This control plane trusts its authenticated supervisors; it
+does not implement Vigil membership or organization authorization.

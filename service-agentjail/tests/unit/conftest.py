@@ -21,12 +21,15 @@ def settings(tmp_path):
         sandbox_base_dir=tmp_path / "sandboxes",
         state_file=tmp_path / "state.json",
         nsjail_bin="/dev/null",
+        api_token="unit-test-token-379-not-a-secret-value",
     )
 
 
-@pytest.fixture
-def manager(settings):
-    return SandboxManager(settings)
+@pytest_asyncio.fixture
+async def manager(settings):
+    manager = SandboxManager(settings)
+    yield manager
+    await manager.shutdown()
 
 
 @pytest.fixture
@@ -43,6 +46,9 @@ async def client(manager, mock_nsjail_run):
         transport=ASGITransport(app=app),
         base_url="http://test/api/v1",
         timeout=60.0,
+        headers={
+            "Authorization": f"Bearer {manager.settings.api_token.get_secret_value()}"
+        },
     ) as c:
         yield c
 

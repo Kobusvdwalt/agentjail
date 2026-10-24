@@ -22,4 +22,4 @@ def create_app() -> FastAPI:
 
 def run_server(host: str = "0.0.0.0", port: int = 8000) -> None:
     app = create_app()
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=host, port=port, timeout_graceful_shutdown=5)

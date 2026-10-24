@@ -38,6 +38,9 @@ class ExecResult(BaseModel):
     stdout: str
     stderr: str
     timed_out: bool = False
+    killed: bool = False
+    stdout_truncated: bool = False
+    stderr_truncated: bool = False
 
 
 class FileInfo(BaseModel):

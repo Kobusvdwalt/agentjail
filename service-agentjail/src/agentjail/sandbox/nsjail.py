@@ -1,8 +1,9 @@
-import asyncio
 from pathlib import Path
+from math import ceil
 
 from agentjail.config import AgentjailSettings
 from agentjail.sandbox.models import ExecResult, SandboxState
+from agentjail.sandbox.process import run_process
 from agentjail.sandbox.resources import mount_roots
 
 
@@ -24,34 +25,15 @@ class NsjailRunner:
         cwd: str | None = None,
     ) -> ExecResult:
         effective_timeout = timeout or sandbox.config.time_limit
-        args = self._build_args(sandbox, command, effective_timeout, env, cwd)
+        args = self._build_args(sandbox, command, ceil(effective_timeout), env, cwd)
 
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        result = await run_process(
+            args,
+            timeout=effective_timeout,
+            output_limit=self.settings.max_output_bytes,
         )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=effective_timeout + 5,
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-            return ExecResult(exit_code=-1, stdout="", stderr="", timed_out=True)
-
-        # nsjail kills the sandboxed process with SIGKILL when
-        # time_limit is exceeded, which surfaces as returncode -9 (or 137).
-        nsjail_timed_out = proc.returncode in (-9, 137)
-
-        return ExecResult(
-            exit_code=proc.returncode or 0,
-            stdout=stdout.decode(errors="replace"),
-            stderr=stderr.decode(errors="replace"),
-            timed_out=nsjail_timed_out,
-        )
+        result.timed_out = result.timed_out or result.exit_code in (-9, 137)
+        return result
 
     def _build_args(
         self,

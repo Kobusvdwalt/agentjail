@@ -61,7 +61,8 @@ class TestShell:
 class TestErrorCases:
     async def test_shell_nonexistent_sandbox(self, client: httpx.AsyncClient):
         resp = await client.post(
-            "/sandbox/nonexistent-uuid/shell", json={"command": "echo hi"}
+            "/sandbox/nonexistent-uuid/shell",
+            json={"command": "echo hi", "lease_token": "invalid"},
         )
         assert resp.status_code == 404
 
@@ -70,6 +71,7 @@ class TestErrorCases:
     ):
         await client.post(f"/sandbox/{sandbox['id']}/stop")
         resp = await client.post(
-            f"/sandbox/{sandbox['id']}/shell", json={"command": "echo hi"}
+            f"/sandbox/{sandbox['id']}/shell",
+            json={"command": "echo hi", "lease_token": "invalid"},
         )
         assert resp.status_code == 409

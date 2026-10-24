@@ -62,14 +62,25 @@ No long-running daemon — each command spawns a fresh nsjail process, executes,
 ```bash
 git clone https://github.com/your-org/get-agentjail.git
 cd get-agentjail
+export AGENTJAIL_API_TOKEN="$(openssl rand -hex 32)"
 docker compose up --build
 ```
 
-The server starts on `http://localhost:8000`.
+The server starts on `http://localhost:8000`. All REST and MCP requests require
+`Authorization: Bearer <AGENTJAIL_API_TOKEN>`. The service refuses to start without
+a token of at least 32 characters. Only `GET /health` is public. Use TLS outside
+loopback development and keep this administrative credential out of sandbox files,
+command environments and model-visible tools. This is a breaking change for
+existing unauthenticated clients; see [the API migration](docs/api.md#authentication-and-migration).
+
+Commands require a renewable, workspace-scoped execution lease. Stop, expiry,
+request disconnect and shutdown cancel active commands and wait for process
+cleanup. Captured output and concurrent execution are bounded. Files survive stop
+and lease reacquisition; deleting a workspace still deletes its files.
 
 ### MCP (for Claude / Cursor)
 
-Point your MCP client at `http://localhost:8000/mcp`. The server exposes 8 tools:
+Point your MCP client at `http://localhost:8000/mcp`. Configure the bearer header in your client. The server exposes 10 tools:
 
 | Tool | Description |
 |---|---|
@@ -77,7 +88,9 @@ Point your MCP client at `http://localhost:8000/mcp`. The server exposes 8 tools
 | `sandbox_inspect` | Get sandbox details |
 | `sandbox_stop` | Stop a sandbox |
 | `sandbox_remove` | Remove a sandbox and its files |
-| `sandbox_shell` | Execute a shell command (pipes, redirects, etc.) |
+| `sandbox_acquire_lease` | Acquire exclusive execution ownership or resume a stopped workspace |
+| `sandbox_renew_lease` | Renew an unexpired lease |
+| `sandbox_shell` | Execute a shell command with its `lease_token` |
 | `sandbox_host_file` | Prepare a file for host retrieval (returns a URL to fetch it) |
 | `sandbox_read_media` | Read image/audio files and return MCP media content |
 | `sandbox_resources` | List shared resource files and discovered Agent Skills — pass `sandbox_id` to scope the listing to that sandbox |
@@ -93,30 +106,35 @@ AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_host_file", "sandbox_resources"]
 
 ```bash
 # Persistent — create a sandbox, run commands, inspect files
-SANDBOX_ID=$(curl -s -X POST http://localhost:8000/api/v1/sandbox \
+SANDBOX_ID=$(curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -s -X POST http://localhost:8000/api/v1/sandbox \
   -H 'Content-Type: application/json' \
   -d '{"name": "my-sandbox"}' | jq -r .id)
 
+# Acquire exclusive execution ownership (renew before expiry for later commands)
+LEASE_TOKEN=$(curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -s -X POST \
+  "http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/lease" \
+  -H 'Content-Type: application/json' -d '{"lease_seconds": 120}' | jq -r .lease_token)
+
 # Run a shell command
-curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/shell \
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/shell \
   -H 'Content-Type: application/json' \
-  -d '{"command": "python3 -c \"print(42 ** 10)\""}'
+  -d "$(jq -n --arg lease "$LEASE_TOKEN" '{command: "printf hello", lease_token: $lease}')"
 
 # Upload a file
-curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/fs/upload \
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/fs/upload \
   -F 'file=@hello.py'
 
 # Execute it
-curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/shell \
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/shell \
   -H 'Content-Type: application/json' \
-  -d '{"command": "python3 /uploads/hello.py"}'
+  -d "$(jq -n --arg lease "$LEASE_TOKEN" '{command: "python3 /uploads/hello.py", lease_token: $lease}')"
 
 # Prepare a file for host retrieval (returns a URL)
-curl -X POST "http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/host?path=/uploads/hello.py"
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X POST "http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/host?path=/uploads/hello.py"
 
 # Clean up
-curl -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/stop
-curl -X DELETE http://localhost:8000/api/v1/sandbox/$SANDBOX_ID
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X POST http://localhost:8000/api/v1/sandbox/$SANDBOX_ID/stop
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X DELETE http://localhost:8000/api/v1/sandbox/$SANDBOX_ID
 ```
 
 ### Full REST API Surface
@@ -124,8 +142,10 @@ curl -X DELETE http://localhost:8000/api/v1/sandbox/$SANDBOX_ID
 ```
 POST   /api/v1/sandbox               — create persistent sandbox
 GET    /api/v1/sandbox/{id}          — inspect sandbox
-POST   /api/v1/sandbox/{id}/stop     — mark sandbox stopped
+POST   /api/v1/sandbox/{id}/stop     — revoke execution ownership and wait for command termination
 DELETE /api/v1/sandbox/{id}          — remove sandbox (force=true to remove running)
+POST   /api/v1/sandbox/{id}/lease — acquire/resume execution ownership
+POST   /api/v1/sandbox/{id}/lease/renew — renew execution ownership
 POST   /api/v1/sandbox/{id}/shell   — run shell command (via /bin/sh -c)
 POST   /api/v1/sandbox/{id}/fs/upload   — upload a file (multipart)
 GET    /api/v1/sandbox/{id}/fs/download?path= — download a file directly
@@ -154,12 +174,12 @@ One resources directory can serve agents with different jobs. Pass glob patterns
 
 ```bash
 # The assistant's own material plus the shared set
-curl -X POST localhost:8000/api/v1/sandbox \
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X POST localhost:8000/api/v1/sandbox \
   -H 'Content-Type: application/json' \
   -d '{"name": "assistant", "resources": ["assistant/**", "shared/**"]}'
 
 # A protocol worker, same directory, different view
-curl -X POST localhost:8000/api/v1/sandbox \
+curl -H "Authorization: Bearer $AGENTJAIL_API_TOKEN" -X POST localhost:8000/api/v1/sandbox \
   -H 'Content-Type: application/json' \
   -d '{"name": "protocols", "resources": ["protocols/**", "shared/**"]}'
 ```
@@ -193,6 +213,9 @@ Settings are configurable via environment variables (prefix `AGENTJAIL_`):
 
 | Variable | Default | Description |
 |---|---|---|
+| `AGENTJAIL_API_TOKEN` | required | Random service bearer credential, at least 32 characters |
+| `AGENTJAIL_MAX_OUTPUT_BYTES` | `65536` | Retained raw bytes per output stream, range 1–1048576 |
+| `AGENTJAIL_MAX_ACTIVE_COMMANDS` | `8` | Active command limit, range 1–128 |
 | `AGENTJAIL_HOST` | `0.0.0.0` | Listen address |
 | `AGENTJAIL_PORT` | `8000` | Listen port |
 | `AGENTJAIL_RUNNER` | `nsjail` | Sandbox runner: `nsjail`, `chroot`, or `bare` |
@@ -204,9 +227,25 @@ Settings are configurable via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_DEFAULT_MEMORY_LIMIT` | `256` | Default memory limit (MB) |
 | `AGENTJAIL_DEFAULT_PIDS_LIMIT` | `64` | Default PID limit |
 
+## Execution ownership
+
+Leases last 1–300 seconds. Every shell request includes its `lease_token`; tokens
+are bound to one workspace and never appear in state or inspection responses.
+An active lease cannot be taken over. Stop and expiry revoke it, and reacquiring
+returns a different token. Service restart invalidates all leases while retaining
+files on the configured storage. A single service process must own each state
+file; file locking does not coordinate live execution across processes.
+
+All authenticated callers are trusted supervisors with access to the entire
+control plane. Leases are execution fencing, not organization authorization.
+Vigil must resolve organization membership and workspace ownership in its trusted
+API/worker before making these calls. Never give a model the service credential
+or direct access to these administrative MCP tools.
+
 ## Docker Requirements
 
-agentjail requires elevated Docker privileges for nsjail to create Linux namespaces:
+The example Compose profile grants the following permissions for namespace creation.
+The minimum working profile depends on the runtime; verify it before deployment:
 
 ```yaml
 cap_add:
@@ -220,7 +259,8 @@ These privileges are for the **container** — nsjail then uses them to create u
 
 ### Running without privileges (bare runner)
 
-For environments where you cannot grant special capabilities (e.g. strict Kubernetes PodSecurity policies), use the **bare runner**:
+For trusted local development only, the **bare runner** avoids namespace setup.
+It does not isolate untrusted commands; do not use it as a production fallback:
 
 ```yaml
 env:

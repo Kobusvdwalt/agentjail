@@ -6,7 +6,7 @@ agentjail supports pluggable sandbox runners. Set `AGENTJAIL_RUNNER` to select o
 
 ## nsjail Runner (`AGENTJAIL_RUNNER=nsjail`)
 
-Default runner. Requires elevated Docker privileges but provides the strongest isolation.
+Default runner. Requires a runtime profile that permits its namespace and mount operations. Verify the profile on the deployment target.
 
 ### Bind-mount isolation
 
@@ -15,7 +15,7 @@ Each sandbox gets:
 - **Read-only** bind mount of `/resources` (shared resources directory, if configured) — the whole directory by default, or only the entries matching the sandbox's `resources` glob patterns. Unselected files are never mounted, so they are unreadable from inside the jail rather than merely unlisted.
 - **Read-write** bind mount of `<root>/home` → `/home` inside the jail
 - **tmpfs** at `/tmp` (64MB, ephemeral per command)
-- **Read-only** bind mount of `/proc` (host's `/proc`, since mounting fresh procfs is blocked by Docker)
+- **No `/proc` mount** (`--disable_proc`); host process environments are unavailable through that path
 - **tmpfs** at `/dev`
 
 ### Isolation guarantees
@@ -44,7 +44,7 @@ The nsjail command is built in `src/agentjail/sandbox/nsjail.py`. Key decisions:
 | `--rlimit_nproc` | configurable (default 64) | Used instead of `--pids_limit` which doesn't exist in the installed nsjail version |
 | `--rlimit_fsize` | 50 (MB) | Default of 1MB was too small for pip wheels and uv temp files |
 | `--rlimit_nofile` | 256 | Default of 32 was too few for package managers (uv, pip) |
-| `--disable_proc` + `--bindmount_ro /proc` | bind host /proc | Docker blocks mounting fresh procfs due to overmounted paths (`/proc/kcore` etc.) |
+| `--disable_proc` | no proc mount | Do not expose supervisor process data |
 | `--mount none:/tmp:tmpfs:size=67108864` | 64MB tmpfs | Default 4MB tmpfs was too small for package management temp files |
 | `--disable_clone_newnet` | only when `network=True` | nsjail isolates network by default; flag is to *enable* networking |
 | bind mount filtering | `Path.exists()` check | Skips mounts like `/lib64` that don't exist on Debian/slim images |
@@ -143,3 +143,22 @@ env:
    - `run_command(sandbox: SandboxState, command: str, timeout: int, env: dict, cwd: str) -> ExecResult` — execute a command
 3. Register the runner in `src/agentjail/sandbox/manager.py`
 4. Add the runner name to the `Literal` type in `src/agentjail/config.py`
+
+## Shared command supervision
+
+All runners delegate process execution to `sandbox/process.py`. Each command
+starts a POSIX session. Timeout/cancellation kills that process group and awaits
+process completion while continuously draining bounded stdout and stderr buffers.
+The manager registers tasks for stop, lease expiry and shutdown; the HTTP route
+also cancels its task when the request disconnects.
+
+With nsjail, termination of the jail's PID namespace init also terminates its
+remaining namespace processes. The local nsjail regression proof checks delayed
+writes after abort/stop and lease expiry. Bare mode has no PID namespace:
+a deliberately detached process can escape its process group, so these controls
+do not make bare mode safe for untrusted commands. No runner fallback is automatic.
+
+Kernel, seccomp and AppArmor permissions depend on the target runtime. On the
+verified OrbStack host, a seccomp override alone permits nsjail without adding
+SYS_ADMIN; AKS requires its own profile validation. The runtime does not load the
+shipped reference config or apply a seccomp policy merely because that file exists.

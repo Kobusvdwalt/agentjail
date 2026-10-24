@@ -5,6 +5,8 @@ services:
       dockerfile: dev.dockerfile
     env_file:
       - ./service-agentjail/default.env
+    environment:
+      AGENTJAIL_API_TOKEN: ${AGENTJAIL_API_TOKEN:?Set AGENTJAIL_API_TOKEN to a random token of at least 32 characters}
     ports:
       - "8000:8000"
     volumes:
