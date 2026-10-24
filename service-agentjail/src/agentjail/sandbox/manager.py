@@ -1,8 +1,9 @@
 import asyncio
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import secrets
+from uuid import UUID
 
 import yaml
 
@@ -132,11 +133,10 @@ class SandboxManager:
         cwd: str = "/home",
         network: bool = False,
         resources: list[str] | None = None,
+        workspace_id: UUID | None = None,
     ) -> SandboxState:
-        sandbox_id = secrets.token_urlsafe(32)
+        sandbox_id = str(workspace_id) if workspace_id else secrets.token_urlsafe(32)
         root_dir = self.settings.sandbox_base_dir / sandbox_id
-        root_dir.mkdir()
-        self.runner.setup_sandbox(root_dir)
 
         now = datetime.now(timezone.utc)
         tl, ml, pl = self._validate_limits(time_limit, memory_limit, pids_limit)
@@ -162,9 +162,18 @@ class SandboxManager:
             updated_at=now,
         )
 
-        with self.state.transaction() as state:
-            state.sandboxes[sandbox_id] = sandbox
-
+        async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
+            with self.state.transaction() as state:
+                existing = state.sandboxes.get(sandbox_id)
+                if existing:
+                    if existing.config != config:
+                        raise SandboxAlreadyExists(
+                            "Workspace configuration cannot be changed"
+                        )
+                    return existing
+                root_dir.mkdir(exist_ok=workspace_id is not None)
+                self.runner.setup_sandbox(root_dir)
+                state.sandboxes[sandbox_id] = sandbox
         return sandbox
 
     async def sandbox_list(self) -> list[SandboxState]:
@@ -196,9 +205,33 @@ class SandboxManager:
             await self._revoke_lease(sandbox_id)
             shutil.rmtree(sandbox.root_dir, ignore_errors=True)
 
-    async def acquire_lease(self, sandbox_id: str, seconds: int) -> LeaseGrant:
+    def _lease_duration(self, seconds: int, not_after: datetime | None) -> float:
         if not 1 <= seconds <= 300:
             raise ValueError("Lease duration must be between 1 and 300 seconds")
+        duration = float(seconds)
+        if not_after is not None:
+            duration = min(
+                duration, (not_after - datetime.now(timezone.utc)).total_seconds()
+            )
+        if duration <= 0:
+            raise LeaseConflict("Execution authorization has expired")
+        return duration
+
+    def _lease_grant(self, lease: ExecutionLease, seconds: int) -> LeaseGrant:
+        remaining = max(0, lease.deadline - asyncio.get_running_loop().time())
+        return LeaseGrant(
+            lease_token=lease.token,
+            lease_seconds=seconds,
+            expires_at=min(
+                datetime.now(timezone.utc) + timedelta(seconds=remaining),
+                lease.not_after or datetime.max.replace(tzinfo=timezone.utc),
+            ),
+        )
+
+    async def acquire_lease(
+        self, sandbox_id: str, seconds: int, not_after: datetime | None = None
+    ) -> LeaseGrant:
+        self._lease_duration(seconds, not_after)
         async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
             self._get_sandbox(sandbox_id)
             if self._closing:
@@ -212,24 +245,45 @@ class SandboxManager:
                 sandbox.status = "running"
                 sandbox.updated_at = datetime.now(timezone.utc)
             lease = ExecutionLease(
-                secrets.token_urlsafe(32), asyncio.get_running_loop().time() + seconds
+                secrets.token_urlsafe(32),
+                asyncio.get_running_loop().time()
+                + self._lease_duration(seconds, not_after),
+                not_after,
             )
             self._leases[sandbox_id] = lease
             lease.timer = asyncio.create_task(self._expire_lease(sandbox_id, lease))
-            return LeaseGrant(lease_token=lease.token, lease_seconds=seconds)
+            return self._lease_grant(lease, seconds)
 
     async def renew_lease(
-        self, sandbox_id: str, token: str, seconds: int
+        self,
+        sandbox_id: str,
+        token: str,
+        seconds: int,
+        not_after: datetime | None = None,
     ) -> LeaseGrant:
         if not 1 <= seconds <= 300:
             raise ValueError("Lease duration must be between 1 and 300 seconds")
         async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
             self._get_sandbox(sandbox_id, require_running=True)
             lease = self._require_lease(sandbox_id, token)
+            bound = not_after if not_after is not None else lease.not_after
+            duration = self._lease_duration(seconds, bound)
             lease.timer.cancel()
-            lease.deadline = asyncio.get_running_loop().time() + seconds
+            lease.not_after = bound
+            lease.deadline = asyncio.get_running_loop().time() + duration
             lease.timer = asyncio.create_task(self._expire_lease(sandbox_id, lease))
-            return LeaseGrant(lease_token=lease.token, lease_seconds=seconds)
+            return self._lease_grant(lease, seconds)
+
+    async def release_lease(self, sandbox_id: str, token: str) -> SandboxState:
+        async with self._workspace_locks.setdefault(sandbox_id, asyncio.Lock()):
+            sandbox = self._get_sandbox(sandbox_id)
+            self._require_lease(sandbox_id, token)
+            with self.state.transaction() as state:
+                sandbox = state.sandboxes[sandbox_id]
+                sandbox.status = "stopped"
+                sandbox.updated_at = datetime.now(timezone.utc)
+            await self._revoke_lease(sandbox_id)
+            return sandbox
 
     def _require_lease(self, sandbox_id: str, token: str) -> ExecutionLease:
         lease = self._leases.get(sandbox_id)

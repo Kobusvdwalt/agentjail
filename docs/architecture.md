@@ -1,5 +1,12 @@
 # Architecture
 
+Trusted REST callers can provision a workspace under a stable UUID using PUT.
+The state transaction reuses an identical configuration or rejects a conflict;
+retries never reinitialize an existing workspace. The supervisor owns tenant-to-ID
+binding. Execution leases can carry absolute authorization bounds, translated to
+monotonic deadlines at admission. Token-checked release serializes with lease
+transfer so stale cleanup cannot stop a new owner. One process owns each storage root.
+
 ## Overview
 
 Sandboxed command execution service for AI agents. Provides isolated environments via MCP (for Claude/Cursor) and a REST API. Supports pluggable sandbox runners — currently **nsjail** (namespace isolation; container profile must be verified) and **chroot** (user namespaces plus chroot; runtime support must also be verified).
