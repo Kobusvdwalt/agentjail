@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
+from uuid import UUID
 
 from agentjail.sandbox.manager import (
     SandboxManager,
@@ -34,10 +35,15 @@ class SandboxCreateRequest(BaseModel):
 
 class LeaseRequest(BaseModel):
     lease_seconds: int = Field(default=120, ge=1, le=300)
+    not_after: AwareDatetime | None = None
 
 
-class RenewLeaseRequest(LeaseRequest):
+class ReleaseLeaseRequest(BaseModel):
     lease_token: str = Field(min_length=1, max_length=128)
+
+
+class RenewLeaseRequest(LeaseRequest, ReleaseLeaseRequest):
+    pass
 
 
 @router.post("/sandbox/{sandbox_id}/lease")
@@ -46,7 +52,7 @@ async def acquire_lease(
     body: LeaseRequest,
     manager: SandboxManager = Depends(get_manager),
 ) -> LeaseGrant:
-    return await manager.acquire_lease(sandbox_id, body.lease_seconds)
+    return await manager.acquire_lease(sandbox_id, body.lease_seconds, body.not_after)
 
 
 @router.post("/sandbox/{sandbox_id}/lease/renew")
@@ -55,7 +61,27 @@ async def renew_lease(
     body: RenewLeaseRequest,
     manager: SandboxManager = Depends(get_manager),
 ) -> LeaseGrant:
-    return await manager.renew_lease(sandbox_id, body.lease_token, body.lease_seconds)
+    return await manager.renew_lease(
+        sandbox_id, body.lease_token, body.lease_seconds, body.not_after
+    )
+
+
+@router.post("/sandbox/{sandbox_id}/lease/release")
+async def release_lease(
+    sandbox_id: str,
+    body: ReleaseLeaseRequest,
+    manager: SandboxManager = Depends(get_manager),
+) -> SandboxState:
+    return await manager.release_lease(sandbox_id, body.lease_token)
+
+
+@router.put("/sandbox/{workspace_id}")
+async def ensure_workspace(
+    workspace_id: UUID,
+    body: SandboxCreateRequest,
+    manager: SandboxManager = Depends(get_manager),
+) -> SandboxState:
+    return await manager.sandbox_create(workspace_id=workspace_id, **body.model_dump())
 
 
 @router.post("/sandbox")

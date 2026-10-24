@@ -8,7 +8,11 @@ from starlette.responses import JSONResponse
 from agentjail.api.auth import BearerAuthMiddleware
 from agentjail.api.routes import exec, filesystem, sandbox, state
 from agentjail.sandbox.manager import SandboxManager
-from agentjail.sandbox.manager import SandboxNotFound, SandboxNotRunning
+from agentjail.sandbox.manager import (
+    SandboxAlreadyExists,
+    SandboxNotFound,
+    SandboxNotRunning,
+)
 from agentjail.sandbox.lease import LeaseConflict
 
 
@@ -40,6 +44,10 @@ def create_api(manager: SandboxManager, lifespan=None) -> FastAPI:
 
     @app.exception_handler(LeaseConflict)
     async def lease_conflict(request, error):
+        return JSONResponse({"detail": str(error)}, status_code=409)
+
+    @app.exception_handler(SandboxAlreadyExists)
+    async def workspace_conflict(request, error):
         return JSONResponse({"detail": str(error)}, status_code=409)
 
     @app.exception_handler(SandboxNotFound)

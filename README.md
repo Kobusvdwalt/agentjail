@@ -78,6 +78,11 @@ request disconnect and shutdown cancel active commands and wait for process
 cleanup. Captured output and concurrent execution are bounded. Files survive stop
 and lease reacquisition; deleting a workspace still deletes its files.
 
+Trusted integrations can retry provisioning with `PUT /api/v1/sandbox/{uuid}`.
+Acquire/renew accept an absolute `not_after` authorization bound and return an
+effective `expires_at`. Per-run cleanup uses `/lease/release` with the current
+token, so stale cleanup cannot stop a replacement owner. See [the REST contract](docs/api.md).
+
 ### MCP (for Claude / Cursor)
 
 Point your MCP client at `http://localhost:8000/mcp`. Configure the bearer header in your client. The server exposes 10 tools:

@@ -4,11 +4,13 @@
 
 ```
 POST   /api/v1/sandbox              — create persistent sandbox
+PUT    /api/v1/sandbox/{uuid}       — idempotently ensure a caller-assigned workspace
 GET    /api/v1/sandbox/{id}         — inspect sandbox
 POST   /api/v1/sandbox/{id}/stop    — revoke its lease and wait for active commands to terminate
 DELETE /api/v1/sandbox/{id}         — remove sandbox (force=true to remove running)
 POST   /api/v1/sandbox/{id}/lease — acquire/resume exclusive execution ownership
 POST   /api/v1/sandbox/{id}/lease/renew — renew current execution ownership
+POST   /api/v1/sandbox/{id}/lease/release — revoke only the presented execution lease
 POST   /api/v1/sandbox/{id}/shell  — run shell command (via /bin/sh -c)
 POST   /api/v1/sandbox/{id}/fs/upload   — upload a file (multipart)
 GET    /api/v1/sandbox/{id}/fs/download?path= — download a file directly
@@ -91,10 +93,20 @@ trusted API. Publish artifacts through a separate authorized hosting path rather
 than sharing this credential. Update old clients before rolling out the service;
 there is no unauthenticated compatibility mode.
 
+## Stable workspace creation
+
+`PUT /sandbox/{uuid}` accepts the same configuration as `POST /sandbox`. The
+caller supplies a UUID durably bound to an authorized workspace. Identical retries
+return the existing sandbox and preserve files, status and execution authority.
+A different effective configuration returns 409; invalid UUIDs return 422. Retries
+after lost responses or service restart create no duplicate. POST still generates
+a random ID. PUT grants no execution lease. Configuration migration and deletion
+remain explicit supervisor actions.
+
 ## Execution lease contract
 
 `POST /sandbox/{id}/lease` accepts `{"lease_seconds":120}` (1–300, default 120)
-and returns `{"lease_token":"<opaque>","lease_seconds":120}`. It resumes a stopped
+and returns `{"lease_token":"<opaque>","lease_seconds":120,"expires_at":"<UTC timestamp>"}`. It resumes a stopped
 workspace using its existing files. An unexpired lease prevents another acquire
 with HTTP 409; it cannot be forcibly replaced by acquiring again.
 
@@ -102,6 +114,25 @@ with HTTP 409; it cannot be forcibly replaced by acquiring again.
 `lease_seconds`. It returns the same token and new duration. An expired or revoked
 lease cannot renew. Renew before expiry; renewal affects future commands, and
 does not extend a command's already admitted deadline.
+
+Acquire and renew optionally accept `not_after`, an absolute timezone-aware
+RFC 3339 timestamp from the supervisor's authorization service. The execution
+deadline is the earlier of `now + lease_seconds` and `not_after`. Already-expired
+bounds return 409; timezone-less timestamps return 422. `lease_seconds` retains
+the requested duration for compatibility; **`expires_at` is the effective expiry**.
+Elapsed authority uses a monotonic clock. Supervisors and Agentjail require
+synchronized wall clocks when exchanging absolute bounds.
+
+Renewal may supply a fresh authorization bound. Omitting `not_after` preserves
+the previous cap. Requests without an initial bound retain duration-only behavior.
+These additions are backward compatible with existing authenticated callers.
+
+`POST /sandbox/{id}/lease/release` requires `{"lease_token":"<current token>"}`.
+It revokes that lease, waits for command termination, marks the workspace stopped
+and retains files. Missing, expired or replaced tokens return 409 without stopping
+a replacement owner. Use it for per-run cleanup; administrative `/stop` remains
+unconditional. Stable creation, absolute bounds and token-checked release are REST
+operations; the administrative MCP toolset is unchanged.
 
 `POST /sandbox/{id}/shell` requires `{"command":"...","lease_token":"..."}` and
 accepts a positive integer `timeout` in seconds. A command runs only while its

@@ -24,6 +24,14 @@ Stop/expiry revokes authority before terminating commands; new acquisition waits
 for that cleanup. Old tokens cannot execute or renew after replacement. All
 leases become invalid on service restart while persistent files remain.
 
+Token-checked REST release validates ownership under the same workspace lock as
+acquire/renew. Delayed cleanup cannot revoke a replacement lease. Caller-supplied
+`not_after` timestamps cap acquire/renew to upstream authorization expiry; omitting
+a renewal bound preserves its cap. Only trusted supervisors may refresh that
+bound after checking current authority. Absolute bounds require synchronized
+supervisor/service clocks. Stable UUID creation rejects configuration changes;
+UUID secrecy is not authorization.
+
 Timeouts, HTTP disconnect, stop, force removal and manager shutdown cancel the
 registered runner task. Shared process supervision kills its POSIX process group
 and awaits completion while draining bounded stdout/stderr buffers. In nsjail,
