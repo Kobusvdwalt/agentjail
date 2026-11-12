@@ -61,8 +61,42 @@ do not store credentials in reachable paths.
 Network is isolated by default. Opting into `network: true` gives commands the
 service container's network access, without a destination allowlist. Bearer
 authentication prevents unauthenticated control-plane calls but does not block
-access to metadata endpoints or other private services. A production deployment
-needs explicit egress and ingress policy, including metadata/control-plane denial.
+access to metadata endpoints or other private services. Do not use
+`network: true` for untrusted code; use the egress allowlist instead.
+
+## Network egress
+
+`AGENTJAIL_NETWORK_ALLOW` gives sandboxes without `network: true` a filtered way
+out (nsjail runner only). What it guarantees:
+
+- The jail's network namespace still has only loopback. The only path out is the
+  per-command Unix socket to `EgressProxy`, so ignoring `HTTP_PROXY` or opening
+  raw sockets reaches nothing. There is no DNS inside the jail; the proxy
+  resolves names.
+- Only `host:port` pairs matching the allowlist are connected. Matching is on the
+  name the client asked for, lowercased, without a trailing dot.
+- The proxy connects to the address it resolved, after checking every resolved
+  address. Link-local (including `169.254.169.254` metadata), multicast,
+  unspecified and Azure's platform address `168.63.129.16` are always refused;
+  private, loopback, CGNAT and other non-public addresses are refused unless
+  `AGENTJAIL_NETWORK_ALLOW_PRIVATE=true`. Names resolving to a mix are refused.
+- HTTPS is tunnelled with CONNECT and not decrypted, so the proxy sees the host
+  and port but not paths or headers. It strips `Proxy-*` headers from plain HTTP.
+- The socket exists only while its command runs; open tunnels are closed when
+  the command ends.
+
+What it does not do:
+
+- It does not limit what an allowed host is used for. Allowlisting a host that
+  accepts uploads (for example `*.googleapis.com`, which includes Cloud Storage)
+  lets sandboxed code send workspace data there. Keep wildcards as narrow as the
+  use allows.
+- It filters TCP through HTTP proxies only. Tools that ignore proxy variables or
+  need UDP do not work.
+- It does not rate-limit or log request content. Decisions are logged at INFO by
+  host and port under `agentjail.sandbox.egress` when logging is configured.
+- One client connection talks to one upstream; a plain-HTTP keep-alive request
+  for a different host on the same connection still reaches the first host.
 
 ## Remaining work before hostile tenant execution
 

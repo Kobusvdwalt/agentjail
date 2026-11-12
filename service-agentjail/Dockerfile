@@ -10,6 +10,10 @@ RUN apt-get update && apt-get install -y \
 RUN git clone --depth 1 https://github.com/google/nsjail.git /nsjail \
     && cd /nsjail && make -j$(nproc)
 
+# The in-jail half of allowlisted egress; static so it runs in any sandbox image.
+COPY native/agentjail_egress.c /egress/
+RUN gcc -O2 -Wall -Werror -static -o /egress/agentjail-egress /egress/agentjail_egress.c
+
 # Collect nsjail's non-standard runtime libs so they can be bundled
 RUN apt-get update && apt-get install -y --no-install-recommends patchelf \
     && rm -rf /var/lib/apt/lists/* \
@@ -36,6 +40,7 @@ RUN uv sync --no-dev --no-editable --python 3.14
 
 # Copy nsjail binary + its runtime libs into the tree
 COPY --from=nsjail-builder /nsjail/nsjail /opt/agentjail/bin/nsjail
+COPY --from=nsjail-builder /egress/agentjail-egress /opt/agentjail/bin/agentjail-egress
 COPY --from=nsjail-builder /nsjail-libs/ /opt/agentjail/lib/
 
 # ── Stage 3: Runtime ────────────────────────────────────────────────────────

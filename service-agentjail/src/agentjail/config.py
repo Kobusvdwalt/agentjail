@@ -1,9 +1,18 @@
+import os
 from pathlib import Path
 from shutil import which
 from typing import Literal
 
-from pydantic import Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import yaml
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
+
+from agentjail.sandbox.egress import parse_rule
 
 
 def _find_nsjail() -> str:
@@ -14,8 +23,64 @@ def _find_nsjail() -> str:
     return which("nsjail") or "nsjail"
 
 
+def _find_egress() -> str:
+    bundled = Path("/opt/agentjail/bin/agentjail-egress")
+    if bundled.is_file():
+        return str(bundled)
+    return which("agentjail-egress") or "agentjail-egress"
+
+
+CONFIG_FILE_ENV = "AGENTJAIL_CONFIG_FILE"
+DEFAULT_CONFIG_FILE = Path("/etc/agentjail/agentjail.yaml")
+
+
+def config_file() -> Path | None:
+    """The YAML file to read: `AGENTJAIL_CONFIG_FILE`, else the default if present."""
+    configured = os.environ.get(CONFIG_FILE_ENV)
+    if configured:
+        path = Path(configured)
+        if not path.is_file():
+            raise ValueError(f"{CONFIG_FILE_ENV} is {path}, which is not a file")
+    else:
+        path = DEFAULT_CONFIG_FILE
+        if not path.is_file():
+            return None
+    if not isinstance(yaml.safe_load(path.read_text()) or {}, dict):
+        raise ValueError(f"{path} must map setting names to values")
+    return path
+
+
 class AgentjailSettings(BaseSettings):
+    """Service settings.
+
+    Read, highest priority first, from constructor arguments, `AGENTJAIL_*`
+    environment variables, then the YAML config file, whose top-level keys are
+    these field names (`network_allow:`, `default_time_limit:`). Unknown keys in
+    the file are an error, so a misspelled setting fails at startup.
+    """
+
     model_config = SettingsConfigDict(env_prefix="AGENTJAIL_")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        path = config_file()
+        yaml_settings = (
+            (YamlConfigSettingsSource(settings_cls, yaml_file=path),) if path else ()
+        )
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            *yaml_settings,
+            file_secret_settings,
+        )
 
     host: str = "0.0.0.0"
     port: int = 8000
@@ -51,3 +116,21 @@ class AgentjailSettings(BaseSettings):
 
     mcp_tools: list[str] | None = None
     """Whitelist of MCP tool names to expose. None means all tools are enabled."""
+
+    network_allow: list[str] = []
+    """Hosts that sandboxes without `network: true` may reach through the
+    egress proxy, e.g. `["api.github.com", "*.googleapis.com"]`. Empty keeps
+    those sandboxes fully offline. See `agentjail.sandbox.egress`."""
+    network_allow_private: bool = False
+    """Let allowlisted hosts resolve to private and loopback addresses. For
+    local development only; metadata addresses stay blocked."""
+    egress_bin: str = _find_egress()
+    egress_port: int = Field(default=3128, ge=1, le=65_535)
+    egress_socket_dir: Path = Path("/tmp/agentjail-egress")
+
+    @field_validator("network_allow")
+    @classmethod
+    def _valid_network_allow(cls, patterns: list[str]) -> list[str]:
+        for pattern in patterns:
+            parse_rule(pattern)
+        return patterns

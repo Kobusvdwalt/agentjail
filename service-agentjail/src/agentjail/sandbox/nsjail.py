@@ -2,14 +2,30 @@ from pathlib import Path
 from math import ceil
 
 from agentjail.config import AgentjailSettings
+from agentjail.sandbox import egress
 from agentjail.sandbox.models import ExecResult, SandboxState
 from agentjail.sandbox.process import run_process
 from agentjail.sandbox.resources import mount_roots
 
 
+EGRESS_BIN = "/.agentjail/egress"
+EGRESS_SOCKET = "/.agentjail/egress.sock"
+
+
 class NsjailRunner:
     def __init__(self, settings: AgentjailSettings) -> None:
         self.settings = settings
+        self.egress_policy = (
+            egress.EgressPolicy.from_patterns(
+                settings.network_allow, settings.network_allow_private
+            )
+            if settings.network_allow
+            else None
+        )
+        if self.egress_policy and not Path(settings.egress_bin).is_file():
+            raise ValueError(
+                f"AGENTJAIL_NETWORK_ALLOW needs the egress forwarder at {settings.egress_bin}"
+            )
 
     def setup_sandbox(self, root_dir: Path) -> None:
         """Create directories that nsjail will bind-mount."""
@@ -25,11 +41,22 @@ class NsjailRunner:
         cwd: str | None = None,
     ) -> ExecResult:
         effective_timeout = timeout or sandbox.config.time_limit
-        args = self._build_args(sandbox, command, ceil(effective_timeout), env, cwd)
+        if sandbox.config.network or not self.egress_policy:
+            args = self._build_args(sandbox, command, ceil(effective_timeout), env, cwd)
+            return await self._run(args, effective_timeout)
 
+        async with egress.serve(
+            self.egress_policy, self.settings.egress_socket_dir
+        ) as socket_path:
+            args = self._build_args(
+                sandbox, command, ceil(effective_timeout), env, cwd, socket_path
+            )
+            return await self._run(args, effective_timeout)
+
+    async def _run(self, args: list[str], timeout: float) -> ExecResult:
         result = await run_process(
             args,
-            timeout=effective_timeout,
+            timeout=timeout,
             output_limit=self.settings.max_output_bytes,
         )
         result.timed_out = result.timed_out or result.exit_code in (-9, 137)
@@ -42,6 +69,7 @@ class NsjailRunner:
         timeout: int,
         env: dict[str, str] | None,
         cwd: str | None,
+        egress_socket: Path | None = None,
     ) -> list[str]:
         args = [
             self.settings.nsjail_bin,
@@ -81,6 +109,10 @@ class NsjailRunner:
             if Path(dev).exists():
                 args.extend(["--bindmount_ro", dev])
 
+        if egress_socket:
+            args.extend(["--bindmount_ro", f"{self.settings.egress_bin}:{EGRESS_BIN}"])
+            args.extend(["--bindmount_ro", f"{egress_socket}:{EGRESS_SOCKET}"])
+
         args.extend(["--cwd", cwd or sandbox.config.cwd])
 
         merged_env = {
@@ -88,6 +120,11 @@ class NsjailRunner:
             "HOME": "/home",
             "TERM": "xterm",
         }
+        if egress_socket:
+            proxy = f"http://127.0.0.1:{self.settings.egress_port}"
+            for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+                merged_env[name] = proxy
+            merged_env["NO_PROXY"] = merged_env["no_proxy"] = "localhost,127.0.0.1,::1"
         merged_env.update(sandbox.config.env)
         if env:
             merged_env.update(env)
@@ -100,6 +137,10 @@ class NsjailRunner:
         log_file = str(Path(sandbox.root_dir) / "nsjail.log")
         args.extend(["--log", log_file])
         args.append("--")
+        if egress_socket:
+            args.extend(
+                [EGRESS_BIN, str(self.settings.egress_port), EGRESS_SOCKET, "--"]
+            )
         args.extend(command)
         return args
 

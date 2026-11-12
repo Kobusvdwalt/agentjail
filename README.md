@@ -17,7 +17,7 @@ AI agents that can run code are powerful, but letting them execute arbitrary com
 - Run shell commands, scripts, and pipelines
 - Install packages and build projects
 - Read and write files in an isolated workspace
-- Optionally access the network (for `pip install`, `curl`, etc.)
+- Reach an allowlist of hosts (`api.github.com`, `*.googleapis.com`) through an egress proxy, or the full network when opted in
 
 ...all without being able to touch your host filesystem, read your environment variables, or fork-bomb your machine.
 
@@ -167,7 +167,7 @@ GET    /api/v1/state                 — raw state file
 | `time_limit` | `30` | Max seconds per command |
 | `memory_limit` | `256` | Max virtual memory in MB |
 | `pids_limit` | `64` | Max concurrent processes |
-| `network` | `false` | Enable network access |
+| `network` | `false` | Full network access. When `false`, only hosts in `AGENTJAIL_NETWORK_ALLOW` are reachable, through the egress proxy |
 | `env` | `{}` | Environment variables passed into the sandbox |
 | `cwd` | `/home` | Working directory inside the sandbox |
 | `resources` | `["*"]` | Glob patterns for which shared resources are mounted at `/resources` |
@@ -202,7 +202,7 @@ separates agent roles, not API callers: any caller can create a sandbox with
 Every command runs inside nsjail with:
 
 - **PID namespace** — can't see or signal other processes
-- **Network namespace** — no network by default (opt-in with `network: true`)
+- **Network namespace** — no network by default; only the hosts in `AGENTJAIL_NETWORK_ALLOW` through the egress proxy, or everything with `network: true`
 - **Mount namespace** — isolated filesystem view
 - **User namespace** — runs as uid/gid 1000, no root capabilities
 - **IPC namespace** — isolated shared memory / semaphores
@@ -214,10 +214,28 @@ Every command runs inside nsjail with:
 
 ## Configuration
 
-Settings are configurable via environment variables (prefix `AGENTJAIL_`):
+Settings come from a YAML file, `AGENTJAIL_*` environment variables, or both.
+
+```yaml
+# /etc/agentjail/agentjail.yaml
+network_allow:
+  - api.github.com
+  - "*.googleapis.com"
+default_time_limit: 60
+```
+
+- The file is read from `/etc/agentjail/agentjail.yaml` when it exists, or from
+  the path in `AGENTJAIL_CONFIG_FILE` (which must then exist).
+- Keys are the variable names below without `AGENTJAIL_`, in lower case
+  (`AGENTJAIL_NETWORK_ALLOW` → `network_allow`). Lists are plain YAML lists.
+- Environment variables override the file, so keep `AGENTJAIL_API_TOKEN` in the
+  environment (a Kubernetes Secret) and the rest in the file (a ConfigMap).
+- An unknown key, a misspelled one or an invalid value stops the service at
+  startup. See `config/agentjail.example.yaml`.
 
 | Variable | Default | Description |
 |---|---|---|
+| `AGENTJAIL_CONFIG_FILE` | `/etc/agentjail/agentjail.yaml` | YAML config file to read; environment only |
 | `AGENTJAIL_API_TOKEN` | required | Random service bearer credential, at least 32 characters |
 | `AGENTJAIL_MAX_OUTPUT_BYTES` | `65536` | Retained raw bytes per output stream, range 1–1048576 |
 | `AGENTJAIL_MAX_ACTIVE_COMMANDS` | `8` | Active command limit, range 1–128 |
@@ -231,6 +249,36 @@ Settings are configurable via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_DEFAULT_TIME_LIMIT` | `30` | Default time limit (seconds) |
 | `AGENTJAIL_DEFAULT_MEMORY_LIMIT` | `256` | Default memory limit (MB) |
 | `AGENTJAIL_DEFAULT_PIDS_LIMIT` | `64` | Default PID limit |
+| `AGENTJAIL_NETWORK_ALLOW` | `[]` | JSON list of hosts that sandboxes without `network: true` may reach through the egress proxy, e.g. `'["api.github.com","*.googleapis.com"]'`. Empty keeps them offline. nsjail runner only. |
+| `AGENTJAIL_NETWORK_ALLOW_PRIVATE` | `false` | Let allowlisted hosts resolve to private or loopback addresses (local development). Metadata addresses stay blocked. |
+| `AGENTJAIL_EGRESS_BIN` | `/opt/agentjail/bin/agentjail-egress` | The in-jail forwarder; bundled in both images |
+| `AGENTJAIL_EGRESS_PORT` | `3128` | Loopback port the proxy listens on inside the jail |
+| `AGENTJAIL_EGRESS_SOCKET_DIR` | `/tmp/agentjail-egress` | Host directory for the per-command proxy sockets |
+
+### Allowlisting network egress
+
+Sandboxes have no network by default. To let them reach specific hosts, list
+them once for the whole service in the config file:
+
+```yaml
+network_allow:
+  - vigil-next.example.net
+  - "*.googleapis.com"      # quote entries that start with *
+  - smtp.example.com:587
+```
+
+- `api.example.com` matches exactly that host, on ports 80 and 443.
+- `*.example.com` matches every subdomain at any depth, but not `example.com` itself.
+- `*` matches any host.
+- `:port` replaces the default ports for that entry.
+
+Commands see `HTTP_PROXY` / `HTTPS_PROXY` set to `http://127.0.0.1:3128`, which
+`curl`, Python, Node, Bun, Go and most package managers honour. Anything not on
+the list gets a `403` naming the refused host. A host that resolves to a cloud
+metadata or link-local address is always refused, and so is a private address
+unless `AGENTJAIL_NETWORK_ALLOW_PRIVATE=true`. Bypassing the proxy finds no
+network at all. Changing the list takes a service restart; existing workspaces
+pick it up without being recreated. See [docs/security.md](docs/security.md#network-egress).
 
 ## Execution ownership
 

@@ -1,0 +1,26 @@
+# agentjail configuration.
+#
+# Mount this at /etc/agentjail/agentjail.yaml, or point AGENTJAIL_CONFIG_FILE at
+# it. Keys are the setting names from docs/ops.md without the AGENTJAIL_ prefix,
+# in lower case. AGENTJAIL_* environment variables override this file; keep
+# the API token in the environment (a Secret), not here. Unknown keys fail at
+# startup.
+
+runner: nsjail
+
+# Hosts sandboxes without `network: true` may reach through the egress proxy.
+# `host` (ports 80 and 443), `*.domain` (any subdomain), `*` (any host), and an
+# optional `:port`. Empty or absent keeps sandboxes offline.
+network_allow:
+  - api.github.com
+  - "*.googleapis.com"
+  - smtp.example.com:587
+
+# Local development only: allow listed hosts that resolve to private addresses.
+network_allow_private: false
+
+default_time_limit: 30
+default_memory_limit: 256
+default_pids_limit: 64
+
+max_active_commands: 8

@@ -1,5 +1,11 @@
 # Plan 05: Sandbox Count/Disk Limits and YAML Config File
 
+> **Config file: done** (with the egress allowlist). It uses flat keys named
+> after the settings (`default_time_limit:`, `network_allow:`) instead of the
+> nested `server:`/`sandbox:` schema below, so every setting is available in
+> the file without a mapping table. Precedence is as planned: env > file >
+> defaults. The sandbox count and disk limits are still open.
+
 ## Goal
 
 1. Add a YAML configuration file (`agentjail.yaml`) as the primary config mechanism

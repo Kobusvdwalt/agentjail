@@ -6,7 +6,7 @@ Quick reference for agents modifying this codebase.
 
 | File | Purpose |
 |---|---|
-| `src/agentjail/config.py` | `AgentjailSettings` (pydantic-settings). All tunable values, env prefix `AGENTJAIL_`. Includes `runner` field, `bind_mount_ro` list, and `resources_dir`. |
+| `src/agentjail/config.py` | `AgentjailSettings` (pydantic-settings). All tunable values, from `AGENTJAIL_*` env vars over the YAML file found by `config_file()`. Includes `runner` field, `bind_mount_ro` list, and `resources_dir`. |
 | `src/agentjail/server.py` | `create_app()` — instantiates settings, manager, MCP, and FastAPI. Mounts MCP at `/mcp`. |
 | `src/agentjail/cli.py` | Typer CLI entry point. Calls `run_server()`. |
 | `src/agentjail/state.py` | `StateManager` — JSON state file with `filelock` + atomic writes via `os.replace()`. |
@@ -24,6 +24,8 @@ Quick reference for agents modifying this codebase.
 | `src/agentjail/sandbox/_chroot_exec.py` | Helper script invoked as subprocess by `ChrootRunner`. Performs unshare → uid map → chroot → rlimits → fork → execve. |
 | `src/agentjail/sandbox/bare.py` | `BareRunner` — no-isolation runner. Runs commands directly as subprocesses. For prototyping / locked-down K8s. |
 | `src/agentjail/sandbox/filesystem.py` | Host-side filesystem operations (`fs_read`, `fs_write`, etc.) with `_resolve_safe()` path traversal protection. |
+| `src/agentjail/sandbox/egress.py` | Allowlisted egress: host pattern parsing (`parse_rule`), `EgressPolicy` (host/port and resolved-address checks) and `EgressProxy`, the HTTP/CONNECT proxy served on a per-command Unix socket by `serve()`. |
+| `native/agentjail_egress.c` | The in-jail forwarder `agentjail-egress`, built statically in both Dockerfiles. Listens on jail loopback, relays to the proxy socket, runs the command and returns its status. |
 | `src/agentjail/sandbox/resources.py` | Glob matching for per-sandbox resource selection. `matches()` / `selected_paths()` drive the `sandbox_resources` listing; `mount_roots()` collapses a selection to the shallowest paths for `NsjailRunner` to bind-mount. |
 
 ## API
@@ -42,6 +44,7 @@ Quick reference for agents modifying this codebase.
 
 | File | Purpose |
 |---|---|
+| `config/agentjail.example.yaml` | Example service config file; checked by `tests/unit/test_config_file.py`. |
 | `config/nsjail_default.cfg` | Reference/documentation nsjail config (NOT used at runtime — args built in Python). |
 | `Dockerfile` | Production image — 3-stage build (nsjail + agentjail-builder + runtime). Produces self-contained `/opt/agentjail` tree that can be `COPY --from`'d into any image. Runs as non-root `service` user. |
 | `Dockerfile.verify` | Local regression image: patched source over the digest-pinned baseline runtime. Not a production release. |

@@ -50,6 +50,31 @@ Each sandbox root directory (`<sandbox_base_dir>/<uuid>/`) has:
 
 System binaries (`/usr`, `/lib`, `/bin`, etc.) are provided via bind mounts (nsjail) or copies/symlinks (chroot).
 
+## Network egress
+
+A sandbox without `network: true` gets its own network namespace containing only
+loopback. When `AGENTJAIL_NETWORK_ALLOW` is set, the nsjail runner gives each
+command a way out that goes only through agentjail:
+
+```
+jail netns                         │ agentjail process (pod network)
+command ──HTTP(S)_PROXY──▶ 127.0.0.1:3128
+                 agentjail-egress (PID 1) ──unix socket──▶ EgressProxy ──▶ allowlisted host
+```
+
+- `agentjail-egress` (`native/agentjail_egress.c`, static) is bind-mounted at
+  `/.agentjail/egress` and wraps the command. It listens on loopback and relays
+  each connection to a Unix socket bind-mounted at `/.agentjail/egress.sock`.
+  It makes no policy decisions.
+- `EgressProxy` (`sandbox/egress.py`) listens on that socket outside the jail,
+  one socket per command, removed when the command ends. It checks the host
+  and port against the allowlist, resolves the host itself, refuses blocked
+  addresses and connects to the address it resolved. HTTPS is a CONNECT tunnel
+  and is never decrypted.
+
+The allowlist is service configuration, not part of a sandbox's stored
+configuration, so changing it does not conflict with existing workspaces.
+
 ## Shared resources
 
 An optional host directory (`AGENTJAIL_RESOURCES_DIR`, default `/var/lib/agentjail/resources`) is bind-mounted read-only at `/resources` inside every sandbox. All sandboxes share the same files — no copies are made. Host changes are visible immediately. If the directory doesn't exist, the mount is skipped.

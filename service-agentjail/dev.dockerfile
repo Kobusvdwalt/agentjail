@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y \
 RUN git clone --depth 1 https://github.com/google/nsjail.git /nsjail \
     && cd /nsjail && make -j$(nproc)
 
+# The in-jail half of allowlisted egress; static so it runs in any sandbox image.
+COPY native/agentjail_egress.c /egress/
+RUN gcc -O2 -Wall -Werror -static -o /egress/agentjail-egress /egress/agentjail_egress.c
+
 FROM python:3.14-slim
 
 ENV UV_PYTHON_DOWNLOADS=0 UV_COMPILE_BYTECODE=0
@@ -19,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=nsjail-builder /nsjail/nsjail /usr/local/bin/nsjail
+COPY --from=nsjail-builder /egress/agentjail-egress /usr/local/bin/agentjail-egress
 # Note: Do NOT setcap on the nsjail binary here. The dev docker-compose grants
 # CAP_SYS_ADMIN via cap_add, and file capabilities conflict with container
 # capabilities on some kernels, causing "Operation not permitted" on exec.
