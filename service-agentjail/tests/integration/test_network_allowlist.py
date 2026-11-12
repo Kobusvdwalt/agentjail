@@ -1,6 +1,5 @@
 """Allowlisted egress through real nsjail: the jail reaches only what is listed."""
 
-import json
 from pathlib import Path
 
 import httpx
@@ -16,16 +15,27 @@ TARGET = "egress-target"
 
 
 @pytest.fixture(scope="module")
-def egress_container(image):
+def config_file(tmp_path_factory):
+    path = tmp_path_factory.mktemp("config") / "agentjail.yaml"
+    path.write_text(
+        "network_allow:\n"
+        f"  - {TARGET}:9000\n"
+        "  - 169.254.169.254\n"
+        "network_allow_private: true\n"
+    )
+    path.chmod(0o644)
+    return path
+
+
+@pytest.fixture(scope="module")
+def egress_container(image, config_file):
     with (
         DockerContainer(image)
         .with_exposed_ports(8000)
         .with_env_file(str(SERVICE_DIR / "default.env"))
         .with_env("AGENTJAIL_API_TOKEN", TOKEN)
-        .with_env(
-            "AGENTJAIL_NETWORK_ALLOW", json.dumps([f"{TARGET}:9000", "169.254.169.254"])
-        )
-        .with_env("AGENTJAIL_NETWORK_ALLOW_PRIVATE", "true")
+        # The allowlist comes from the config file at its default location.
+        .with_volume_mapping(str(config_file), "/etc/agentjail/agentjail.yaml", "ro")
         .with_kwargs(privileged=True, user="root", hostname=TARGET)
         .waiting_for(
             LogMessageWaitStrategy("Application startup complete").with_startup_timeout(

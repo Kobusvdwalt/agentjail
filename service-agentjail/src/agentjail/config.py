@@ -1,9 +1,16 @@
+import os
 from pathlib import Path
 from shutil import which
 from typing import Literal
 
+import yaml
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
 
 from agentjail.sandbox.egress import parse_rule
 
@@ -23,8 +30,57 @@ def _find_egress() -> str:
     return which("agentjail-egress") or "agentjail-egress"
 
 
+CONFIG_FILE_ENV = "AGENTJAIL_CONFIG_FILE"
+DEFAULT_CONFIG_FILE = Path("/etc/agentjail/agentjail.yaml")
+
+
+def config_file() -> Path | None:
+    """The YAML file to read: `AGENTJAIL_CONFIG_FILE`, else the default if present."""
+    configured = os.environ.get(CONFIG_FILE_ENV)
+    if configured:
+        path = Path(configured)
+        if not path.is_file():
+            raise ValueError(f"{CONFIG_FILE_ENV} is {path}, which is not a file")
+    else:
+        path = DEFAULT_CONFIG_FILE
+        if not path.is_file():
+            return None
+    if not isinstance(yaml.safe_load(path.read_text()) or {}, dict):
+        raise ValueError(f"{path} must map setting names to values")
+    return path
+
+
 class AgentjailSettings(BaseSettings):
+    """Service settings.
+
+    Read, highest priority first, from constructor arguments, `AGENTJAIL_*`
+    environment variables, then the YAML config file, whose top-level keys are
+    these field names (`network_allow:`, `default_time_limit:`). Unknown keys in
+    the file are an error, so a misspelled setting fails at startup.
+    """
+
     model_config = SettingsConfigDict(env_prefix="AGENTJAIL_")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        path = config_file()
+        yaml_settings = (
+            (YamlConfigSettingsSource(settings_cls, yaml_file=path),) if path else ()
+        )
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            *yaml_settings,
+            file_secret_settings,
+        )
 
     host: str = "0.0.0.0"
     port: int = 8000

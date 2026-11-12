@@ -214,10 +214,28 @@ Every command runs inside nsjail with:
 
 ## Configuration
 
-Settings are configurable via environment variables (prefix `AGENTJAIL_`):
+Settings come from a YAML file, `AGENTJAIL_*` environment variables, or both.
+
+```yaml
+# /etc/agentjail/agentjail.yaml
+network_allow:
+  - api.github.com
+  - "*.googleapis.com"
+default_time_limit: 60
+```
+
+- The file is read from `/etc/agentjail/agentjail.yaml` when it exists, or from
+  the path in `AGENTJAIL_CONFIG_FILE` (which must then exist).
+- Keys are the variable names below without `AGENTJAIL_`, in lower case
+  (`AGENTJAIL_NETWORK_ALLOW` → `network_allow`). Lists are plain YAML lists.
+- Environment variables override the file, so keep `AGENTJAIL_API_TOKEN` in the
+  environment (a Kubernetes Secret) and the rest in the file (a ConfigMap).
+- An unknown key, a misspelled one or an invalid value stops the service at
+  startup. See `config/agentjail.example.yaml`.
 
 | Variable | Default | Description |
 |---|---|---|
+| `AGENTJAIL_CONFIG_FILE` | `/etc/agentjail/agentjail.yaml` | YAML config file to read; environment only |
 | `AGENTJAIL_API_TOKEN` | required | Random service bearer credential, at least 32 characters |
 | `AGENTJAIL_MAX_OUTPUT_BYTES` | `65536` | Retained raw bytes per output stream, range 1–1048576 |
 | `AGENTJAIL_MAX_ACTIVE_COMMANDS` | `8` | Active command limit, range 1–128 |
@@ -240,10 +258,13 @@ Settings are configurable via environment variables (prefix `AGENTJAIL_`):
 ### Allowlisting network egress
 
 Sandboxes have no network by default. To let them reach specific hosts, list
-them once for the whole service:
+them once for the whole service in the config file:
 
-```bash
-AGENTJAIL_NETWORK_ALLOW='["vigil-next.example.net", "*.googleapis.com", "smtp.example.com:587"]'
+```yaml
+network_allow:
+  - vigil-next.example.net
+  - "*.googleapis.com"      # quote entries that start with *
+  - smtp.example.com:587
 ```
 
 - `api.example.com` matches exactly that host, on ports 80 and 443.

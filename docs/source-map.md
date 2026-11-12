@@ -6,7 +6,7 @@ Quick reference for agents modifying this codebase.
 
 | File | Purpose |
 |---|---|
-| `src/agentjail/config.py` | `AgentjailSettings` (pydantic-settings). All tunable values, env prefix `AGENTJAIL_`. Includes `runner` field, `bind_mount_ro` list, and `resources_dir`. |
+| `src/agentjail/config.py` | `AgentjailSettings` (pydantic-settings). All tunable values, from `AGENTJAIL_*` env vars over the YAML file found by `config_file()`. Includes `runner` field, `bind_mount_ro` list, and `resources_dir`. |
 | `src/agentjail/server.py` | `create_app()` — instantiates settings, manager, MCP, and FastAPI. Mounts MCP at `/mcp`. |
 | `src/agentjail/cli.py` | Typer CLI entry point. Calls `run_server()`. |
 | `src/agentjail/state.py` | `StateManager` — JSON state file with `filelock` + atomic writes via `os.replace()`. |
@@ -44,6 +44,7 @@ Quick reference for agents modifying this codebase.
 
 | File | Purpose |
 |---|---|
+| `config/agentjail.example.yaml` | Example service config file; checked by `tests/unit/test_config_file.py`. |
 | `config/nsjail_default.cfg` | Reference/documentation nsjail config (NOT used at runtime — args built in Python). |
 | `Dockerfile` | Production image — 3-stage build (nsjail + agentjail-builder + runtime). Produces self-contained `/opt/agentjail` tree that can be `COPY --from`'d into any image. Runs as non-root `service` user. |
 | `Dockerfile.verify` | Local regression image: patched source over the digest-pinned baseline runtime. Not a production release. |
