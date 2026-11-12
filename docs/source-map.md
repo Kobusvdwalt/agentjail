@@ -24,6 +24,8 @@ Quick reference for agents modifying this codebase.
 | `src/agentjail/sandbox/_chroot_exec.py` | Helper script invoked as subprocess by `ChrootRunner`. Performs unshare → uid map → chroot → rlimits → fork → execve. |
 | `src/agentjail/sandbox/bare.py` | `BareRunner` — no-isolation runner. Runs commands directly as subprocesses. For prototyping / locked-down K8s. |
 | `src/agentjail/sandbox/filesystem.py` | Host-side filesystem operations (`fs_read`, `fs_write`, etc.) with `_resolve_safe()` path traversal protection. |
+| `src/agentjail/sandbox/egress.py` | Allowlisted egress: host pattern parsing (`parse_rule`), `EgressPolicy` (host/port and resolved-address checks) and `EgressProxy`, the HTTP/CONNECT proxy served on a per-command Unix socket by `serve()`. |
+| `native/agentjail_egress.c` | The in-jail forwarder `agentjail-egress`, built statically in both Dockerfiles. Listens on jail loopback, relays to the proxy socket, runs the command and returns its status. |
 | `src/agentjail/sandbox/resources.py` | Glob matching for per-sandbox resource selection. `matches()` / `selected_paths()` drive the `sandbox_resources` listing; `mount_roots()` collapses a selection to the shallowest paths for `NsjailRunner` to bind-mount. |
 
 ## API

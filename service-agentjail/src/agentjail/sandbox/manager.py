@@ -56,6 +56,8 @@ class SandboxManager:
         self._closing = False
         self.state = StateManager(settings.state_file)
         self.runner: NsjailRunner | ChrootRunner | BareRunner
+        if settings.network_allow and settings.runner != "nsjail":
+            raise ValueError("AGENTJAIL_NETWORK_ALLOW requires the nsjail runner")
         if settings.runner == "bare":
             self.runner = BareRunner(settings)
         elif settings.runner == "chroot":

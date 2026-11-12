@@ -31,6 +31,11 @@ Settings via environment variables (prefix `AGENTJAIL_`):
 | `AGENTJAIL_DEFAULT_MEMORY_LIMIT` | `256` | Default memory limit (MB) |
 | `AGENTJAIL_DEFAULT_PIDS_LIMIT` | `64` | Default PID limit |
 | `AGENTJAIL_MCP_TOOLS` | *(all)* | JSON list of MCP tool names to expose (e.g. `'["sandbox_shell","sandbox_host_file"]'`). When unset, all tools are enabled. |
+| `AGENTJAIL_NETWORK_ALLOW` | `[]` | JSON list of hosts that sandboxes without `network: true` may reach through the egress proxy, e.g. `'["api.github.com","*.googleapis.com"]'`. Empty keeps them offline. nsjail runner only. |
+| `AGENTJAIL_NETWORK_ALLOW_PRIVATE` | `false` | Let allowlisted hosts resolve to private or loopback addresses (local development). Metadata addresses stay blocked. |
+| `AGENTJAIL_EGRESS_BIN` | `/opt/agentjail/bin/agentjail-egress` | The in-jail forwarder; bundled in both images |
+| `AGENTJAIL_EGRESS_PORT` | `3128` | Loopback port the proxy listens on inside the jail |
+| `AGENTJAIL_EGRESS_SOCKET_DIR` | `/tmp/agentjail-egress` | Host directory for the per-command proxy sockets |
 
 ## Docker setup
 
@@ -104,6 +109,7 @@ docker compose up --build --watch
 - Sandbox lifecycle: create → inspect → list → stop → remove
 - curl and HTTPS (with `network: true`) — `ca-certificates` and `curl` are installed in the container image
 - DNS resolution works when sandbox is created with `network: true`
+- Allowlisted egress (`AGENTJAIL_NETWORK_ALLOW`): allowlisted HTTP and HTTPS through the proxy, refusal of unlisted hosts and ports, metadata refusal, and no network when the proxy is bypassed (`tests/integration/test_network_allowlist.py`)
 - exec with args (direct binary execution)
 - shell (via /bin/sh -c)
 - Filesystem API: mkdir, write, read, list, stat, remove

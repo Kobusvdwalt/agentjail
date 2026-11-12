@@ -21,7 +21,7 @@ Each sandbox gets:
 ### Isolation guarantees
 
 - **PID namespace** (`CLONE_NEWPID`) — process isolation
-- **Network namespace** (`CLONE_NEWNET`) — network disabled by default, opt-in via `network: true`
+- **Network namespace** (`CLONE_NEWNET`) — network disabled by default, opt-in via `network: true`. With `AGENTJAIL_NETWORK_ALLOW` set, the command is wrapped by `agentjail-egress` and reaches allowlisted hosts through the egress proxy (see `docs/architecture.md#network-egress`)
 - **Mount namespace** (`CLONE_NEWNS`) — filesystem isolation
 - **UTS namespace** (`CLONE_NEWUTS`) — hostname isolation
 - **IPC namespace** (`CLONE_NEWIPC`) — IPC isolation
@@ -47,6 +47,7 @@ The nsjail command is built in `src/agentjail/sandbox/nsjail.py`. Key decisions:
 | `--disable_proc` | no proc mount | Do not expose supervisor process data |
 | `--mount none:/tmp:tmpfs:size=67108864` | 64MB tmpfs | Default 4MB tmpfs was too small for package management temp files |
 | `--disable_clone_newnet` | only when `network=True` | nsjail isolates network by default; flag is to *enable* networking |
+| `--bindmount_ro <egress_bin>:/.agentjail/egress`, `<socket>:/.agentjail/egress.sock` | only with an allowlist and `network=False` | The in-jail forwarder and this command's proxy socket. A Unix socket accepts connections through a read-only mount |
 | bind mount filtering | `Path.exists()` check | Skips mounts like `/lib64` that don't exist on Debian/slim images |
 
 Commands are executed via `/bin/sh -c "<command>"` (full path required — nsjail uses `execve`, no PATH lookup).
@@ -73,7 +74,7 @@ Designed for environments where `CAP_SYS_ADMIN` is blocked (e.g. Kubernetes with
 
 - **User namespace** — runs as mapped uid/gid, no real root
 - **PID namespace** — process isolation
-- **Network namespace** — no network (no opt-in yet)
+- **Network namespace** — no network (no opt-in yet; `AGENTJAIL_NETWORK_ALLOW` is refused at startup)
 - **IPC namespace** — isolated shared memory / semaphores
 - **UTS namespace** — isolated hostname
 - **chroot** — filesystem isolation (no mount namespace)

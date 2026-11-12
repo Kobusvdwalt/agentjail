@@ -51,7 +51,7 @@ AGENTJAIL_MCP_TOOLS='["sandbox_shell", "sandbox_host_file", "sandbox_resources"]
 | `time_limit` | `30` | Max seconds per command |
 | `memory_limit` | `256` | Max virtual memory in MB |
 | `pids_limit` | `64` | Max concurrent processes |
-| `network` | `false` | Enable network access (nsjail only) |
+| `network` | `false` | Full network access (nsjail only). When `false`, commands reach only the hosts in `AGENTJAIL_NETWORK_ALLOW`, through `HTTP_PROXY`/`HTTPS_PROXY`; refused hosts get a `403` from the proxy |
 | `env` | `{}` | Environment variables passed into the sandbox |
 | `cwd` | `/home` | Working directory inside the sandbox |
 | `resources` | `["*"]` | Glob patterns selecting which shared resources are mounted at `/resources` |

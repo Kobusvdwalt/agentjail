@@ -2,8 +2,10 @@ from pathlib import Path
 from shutil import which
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from agentjail.sandbox.egress import parse_rule
 
 
 def _find_nsjail() -> str:
@@ -12,6 +14,13 @@ def _find_nsjail() -> str:
     if bundled.is_file():
         return str(bundled)
     return which("nsjail") or "nsjail"
+
+
+def _find_egress() -> str:
+    bundled = Path("/opt/agentjail/bin/agentjail-egress")
+    if bundled.is_file():
+        return str(bundled)
+    return which("agentjail-egress") or "agentjail-egress"
 
 
 class AgentjailSettings(BaseSettings):
@@ -51,3 +60,21 @@ class AgentjailSettings(BaseSettings):
 
     mcp_tools: list[str] | None = None
     """Whitelist of MCP tool names to expose. None means all tools are enabled."""
+
+    network_allow: list[str] = []
+    """Hosts that sandboxes without `network: true` may reach through the
+    egress proxy, e.g. `["api.github.com", "*.googleapis.com"]`. Empty keeps
+    those sandboxes fully offline. See `agentjail.sandbox.egress`."""
+    network_allow_private: bool = False
+    """Let allowlisted hosts resolve to private and loopback addresses. For
+    local development only; metadata addresses stay blocked."""
+    egress_bin: str = _find_egress()
+    egress_port: int = Field(default=3128, ge=1, le=65_535)
+    egress_socket_dir: Path = Path("/tmp/agentjail-egress")
+
+    @field_validator("network_allow")
+    @classmethod
+    def _valid_network_allow(cls, patterns: list[str]) -> list[str]:
+        for pattern in patterns:
+            parse_rule(pattern)
+        return patterns
