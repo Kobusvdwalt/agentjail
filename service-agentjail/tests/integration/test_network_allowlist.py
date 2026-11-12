@@ -1,5 +1,6 @@
 """Allowlisted egress through real nsjail: the jail reaches only what is listed."""
 
+import time
 from pathlib import Path
 
 import httpx
@@ -44,11 +45,18 @@ def egress_container(image, config_file):
         )
     ) as container:
         # A server outside the jail, on the container's own (private) address.
-        container.get_wrapped_container().exec_run(
+        wrapped = container.get_wrapped_container()
+        wrapped.exec_run(
             ["python3", "-m", "http.server", "9000", "--bind", "0.0.0.0"],
             detach=True,
             workdir="/tmp",
         )
+        probe = f"import socket; socket.create_connection(('{TARGET}', 9000), 1)"
+        deadline = time.monotonic() + 30
+        while wrapped.exec_run(["python3", "-c", probe]).exit_code != 0:
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"the test server on {TARGET}:9000 did not start")
+            time.sleep(0.2)
         yield container
 
 
@@ -75,9 +83,10 @@ async def test_an_allowlisted_host_is_reachable(egress_client, offline_sandbox):
     result = await shell(
         egress_client,
         offline_sandbox["id"],
-        f"curl -sS -o /dev/null -w '%{{http_code}}' http://{TARGET}:9000/",
+        f"curl -sS -w '\\n%{{http_code}}' http://{TARGET}:9000/",
     )
-    assert result["stdout"] == "200", result["stderr"]
+    body, _, status = result["stdout"].rpartition("\n")
+    assert status == "200", body + result["stderr"]
 
 
 async def test_the_proxy_is_announced_in_the_environment(
