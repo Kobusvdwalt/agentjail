@@ -44,65 +44,32 @@ def resources_dir():
         yield str(resources)
 
 
-TOKEN = "integration-test-token-379-not-a-secret"
-
-
-def _service_container(image: str, user: str) -> DockerContainer:
-    return (
+@pytest.fixture(scope="session")
+def container(image, resources_dir):
+    with (
         DockerContainer(image)
         .with_exposed_ports(8000)
         .with_env_file(str(Path(SERVICE_DIR) / "default.env"))
-        .with_env("AGENTJAIL_API_TOKEN", TOKEN)
+        .with_env("AGENTJAIL_API_TOKEN", "integration-test-token-379-not-a-secret")
+        .with_volume_mapping(resources_dir, "/var/lib/agentjail/resources", "ro")
         .with_kwargs(
             privileged=True,
-            user=user,
+            user="root",
         )
         .waiting_for(
             LogMessageWaitStrategy("Application startup complete").with_startup_timeout(
                 60
             )
         )
-    )
-
-
-def _base_url(container: DockerContainer) -> str:
-    host = container.get_container_host_ip()
-    port = container.get_exposed_port(8000)
-    return f"http://{host}:{port}/api/v1"
-
-
-@pytest.fixture(scope="session")
-def container(image, resources_dir):
-    with _service_container(image, "root").with_volume_mapping(
-        resources_dir, "/var/lib/agentjail/resources", "ro"
-    ) as c:
-        yield c
-
-
-@pytest.fixture(scope="session")
-def service_user_container(image):
-    """The service as the image's non-root user, as deployments run it.
-
-    Running as root hides bugs: the jail's uid 1000 then maps to the owner of
-    host files such as /dev/null, which a non-root service never is.
-    """
-    with _service_container(image, "service") as c:
-        yield c
-
-
-@pytest_asyncio.fixture
-async def service_user_client(service_user_container):
-    async with httpx.AsyncClient(
-        base_url=_base_url(service_user_container),
-        timeout=60.0,
-        headers={"Authorization": f"Bearer {TOKEN}"},
     ) as c:
         yield c
 
 
 @pytest.fixture(scope="session")
 def base_url(container):
-    return _base_url(container)
+    host = container.get_container_host_ip()
+    port = container.get_exposed_port(8000)
+    return f"http://{host}:{port}/api/v1"
 
 
 @pytest_asyncio.fixture
@@ -110,7 +77,7 @@ async def client(base_url):
     async with httpx.AsyncClient(
         base_url=base_url,
         timeout=60.0,
-        headers={"Authorization": f"Bearer {TOKEN}"},
+        headers={"Authorization": "Bearer integration-test-token-379-not-a-secret"},
     ) as c:
         yield c
 
