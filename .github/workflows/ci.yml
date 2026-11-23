@@ -56,6 +56,10 @@ jobs:
         with:
           enable-cache: true
 
+      # Ubuntu's AppArmor stops non-root processes from creating user
+      # namespaces, which the non-root service tests need for nsjail.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - run: uv sync --extra dev
       - run: uv run pytest tests/integration -v
 
