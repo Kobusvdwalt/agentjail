@@ -104,7 +104,10 @@ class NsjailRunner:
 
         args.append("--disable_proc")
         args.extend(["--mount", "none:/tmp:tmpfs:size=67108864"])
-        args.extend(["--mount", "none:/dev:tmpfs"])
+        # mode=755, not tmpfs's default 1777: in a sticky world-writable
+        # directory the kernel refuses O_CREAT opens of a device node owned by
+        # another uid, and a shell's `>/dev/null` opens with O_CREAT.
+        args.extend(["--mount", "none:/dev:tmpfs:mode=755"])
         for dev in ("/dev/null", "/dev/zero", "/dev/urandom", "/dev/random"):
             if Path(dev).exists():
                 args.extend(["--bindmount_ro", dev])

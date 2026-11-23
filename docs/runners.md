@@ -16,7 +16,7 @@ Each sandbox gets:
 - **Read-write** bind mount of `<root>/home` → `/home` inside the jail
 - **tmpfs** at `/tmp` (64MB, ephemeral per command)
 - **No `/proc` mount** (`--disable_proc`); host process environments are unavailable through that path
-- **tmpfs** at `/dev`
+- **tmpfs** at `/dev` (mode 755), with `/dev/null`, `/dev/zero`, `/dev/urandom` and `/dev/random` bind-mounted from the container
 
 ### Isolation guarantees
 
@@ -46,6 +46,7 @@ The nsjail command is built in `src/agentjail/sandbox/nsjail.py`. Key decisions:
 | `--rlimit_nofile` | 256 | Default of 32 was too few for package managers (uv, pip) |
 | `--disable_proc` | no proc mount | Do not expose supervisor process data |
 | `--mount none:/tmp:tmpfs:size=67108864` | 64MB tmpfs | Default 4MB tmpfs was too small for package management temp files |
+| `--mount none:/dev:tmpfs:mode=755` | `/dev` not sticky | With tmpfs's default 1777, the kernel refuses `O_CREAT` opens of a device node owned by another uid in a sticky world-writable directory, so `echo x >/dev/null` failed with `Permission denied` whenever the service ran as non-root |
 | `--disable_clone_newnet` | only when `network=True` | nsjail isolates network by default; flag is to *enable* networking |
 | `--bindmount_ro <egress_bin>:/.agentjail/egress`, `<socket>:/.agentjail/egress.sock` | only with an allowlist and `network=False` | The in-jail forwarder and this command's proxy socket. A Unix socket accepts connections through a read-only mount |
 | bind mount filtering | `Path.exists()` check | Skips mounts like `/lib64` that don't exist on Debian/slim images |

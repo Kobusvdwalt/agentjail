@@ -366,6 +366,12 @@ class TestNsjailWiring:
         assert not any("egress" in arg or "PROXY" in arg for arg in args)
         assert args[-4:] == ["--", "/bin/sh", "-c", "true"]
 
+    def test_dev_is_not_sticky_world_writable(self, settings, tmp_path):
+        args = NsjailRunner(settings)._build_args(
+            _sandbox(tmp_path), ["/bin/sh", "-c", "true"], 5, None, None
+        )
+        assert "none:/dev:tmpfs:mode=755" in args
+
     def test_egress_mounts_the_forwarder_and_socket_and_wraps_the_command(
         self, allowlisted, tmp_path
     ):

@@ -75,3 +75,20 @@ class TestErrorCases:
             json={"command": "echo hi", "lease_token": "invalid"},
         )
         assert resp.status_code == 409
+
+
+DEVICE_COMMAND = (
+    "echo out >/dev/null && echo x >>/dev/null && echo z >/dev/zero"
+    " && head -c 4 /dev/urandom | wc -c && head -c 3 /dev/zero | wc -c"
+)
+
+
+class TestDevices:
+    # /dev was a mode-1777 tmpfs, where a shell redirect (O_CREAT) to a device
+    # node owned by another uid gets EACCES. Running the service as root maps
+    # the jail user onto that owner, so this passes either way here; the unit
+    # test on the /dev mount mode guards the fix.
+    async def test_device_nodes_work(self, client: httpx.AsyncClient, sandbox: dict):
+        result = await shell(client, sandbox["id"], DEVICE_COMMAND)
+        assert result["exit_code"] == 0, result["stderr"]
+        assert result["stdout"].split() == ["4", "3"]
